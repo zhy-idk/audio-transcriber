@@ -1,0 +1,36 @@
+{
+  "name": "soniox-audio-transcription",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:server": "npm run build:server && npm run start:server",
+    "start:server": "node dist/server/server/server-main.js",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "tsc --project tsconfig.server.json",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:property": "vitest run tests/property",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "dotenv": "16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.10",
+    "autoprefixer": "10.4.20",
+    "fast-check": "3.23.2",
+    "postcss": "8.5.3",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.8.2",
+    "vite": "6.2.2",
+    "vitest": "3.0.8"
+  }
+}

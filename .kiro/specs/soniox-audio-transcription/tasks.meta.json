@@ -1,0 +1,511 @@
+{
+  "pbtResults": {
+    "3.2 Write Property 1 test for deterministic file-selection validation": {
+      "status": "passed",
+      "failingExample": "",
+      "lastRunTimestamp": 1787902313750
+    },
+    "2.6 Write Property 7 test for exact backend lifecycle and safe failure outcomes": {
+      "status": "passed",
+      "lastRunTimestamp": 1787902324709
+    },
+    "3.4 Write Property 3 test for terminal and active-job status stability": {
+      "status": "passed",
+      "failingExample": "",
+      "lastRunTimestamp": 1787902295509
+    },
+    "4.4 Write Property 5 test for lossless UTF-8 download generation": {
+      "status": "passed",
+      "lastRunTimestamp": 1787902486239
+    },
+    "4.2 Write Property 4 test for safe, lossless transcript rendering": {
+      "status": "passed",
+      "failingExample": "",
+      "lastRunTimestamp": 1787902489415
+    },
+    "3.5 Write Property 6 test for active-job transcript replacement": {
+      "status": "passed",
+      "failingExample": "",
+      "lastRunTimestamp": 1787902495586
+    },
+    "3.6 Write Property 8 test for active-state control locking and failure-detail normalization": {
+      "status": "passed",
+      "failingExample": "",
+      "lastRunTimestamp": 1787902500647
+    }
+  },
+  "executionHistory": {
+    "1.1 Initialize the TypeScript browser/server project, Tailwind build, and local test tooling": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898120575
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898129279
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898549890
+      }
+    ],
+    "1.2 Define shared public models and client-state primitives": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898120665
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898559555
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898884745
+      }
+    ],
+    "2.1 Implement request validation and public-status sanitization modules": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898120730
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898890477
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899366664
+      }
+    ],
+    "2.2 Create backend-private credential and Soniox gateway boundaries": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898120800
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898894911
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899370922
+      }
+    ],
+    "2.3 Implement the in-memory job repository and job coordinator": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898120869
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899392416
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899770313
+      }
+    ],
+    "2.4 Expose same-origin create and status API handlers": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898120936
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899816093
+      }
+    ],
+    "3.1 Implement `FileSelectionController`, upload zone, and initial language-preference control": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121020
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898898701
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899374648
+      }
+    ],
+    "3.3 Implement the client status reducer, status region, and terminal control behavior": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121103
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899396149
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899787774
+      }
+    ],
+    "4.1 Implement the safe `TranscriptViewer`": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121162
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898901787
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899378920
+      }
+    ],
+    "4.3 Implement `TranscriptExporter` download handling": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121233
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898905832
+      },
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899382386
+      }
+    ],
+    "5.1 Implement the same-origin client API and polling controller": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121294
+      },
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787900312867
+      },
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787901207371
+      }
+    ],
+    "5.2 Compose `TranscriptionPage` and apply all Precision Core Tailwind layouts": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121361
+      },
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787900316654
+      },
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787901215231
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898121427
+      },
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787901219917
+      },
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787901767730
+      }
+    ],
+    "1. Establish the TypeScript application foundation and shared transcription contract": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787898884821
+      }
+    ],
+    "4. Implement lossless transcript viewing and export": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899382464
+      }
+    ],
+    "3. Implement client selection, status, and settings state": [
+      {
+        "executionId": "7b246417-1609-4862-8955-47ae94db5a78",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787899787828
+      }
+    ],
+    "5. Wire the client workflow to the backend and complete the responsive interface": [
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787901215296
+      }
+    ],
+    "2. Implement the secure backend transcription lifecycle": [
+      {
+        "executionId": "13c3e2a7-a8f6-4144-a014-30e2ee91ded6",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787901787974
+      }
+    ],
+    "2.5 Write Property 2 test for submission isolation, setting preservation, and job-ID uniqueness": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902033960
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902111224
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902335293
+      }
+    ],
+    "2.6 Write Property 7 test for exact backend lifecycle and safe failure outcomes": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902038247
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902115470
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902339755
+      }
+    ],
+    "2.7 Write backend unit and local-fake integration tests": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902041987
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902119384
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902343750
+      }
+    ],
+    "3.2 Write Property 1 test for deterministic file-selection validation": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902045841
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902123550
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902348675
+      }
+    ],
+    "3.4 Write Property 3 test for terminal and active-job status stability": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902053864
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902127686
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902353194
+      }
+    ],
+    "3.5 Write Property 6 test for active-job transcript replacement": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902058119
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902358618
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902535896
+      }
+    ],
+    "3.6 Write Property 8 test for active-state control locking and failure-detail normalization": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902066878
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902366814
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902540493
+      }
+    ],
+    "3.7 Write focused client unit/component tests for upload, status, and language controls": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902071390
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902371712
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902545985
+      }
+    ],
+    "4.2 Write Property 4 test for safe, lossless transcript rendering": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902075679
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902375600
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902550550
+      }
+    ],
+    "4.4 Write Property 5 test for lossless UTF-8 download generation": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902079682
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902379999
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902555290
+      }
+    ],
+    "4.5 Write transcript viewer and exporter unit/component tests": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902084358
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902560119
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787903209819
+      }
+    ],
+    "5.3 Write browser integration, accessibility, and responsive regression tests": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902092430
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902565040
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787903214515
+      }
+    ],
+    "5.4 Write automated integration checks for client/server isolation and production build output": [
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902096946
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787902574014
+      },
+      {
+        "executionId": "9946042a-53a9-4417-bd8e-9897f64ef56f",
+        "chatSessionId": "sess_078c179d-8c10-4100-a4f1-f446b06f65cb",
+        "timestamp": 1787903219720
+      }
+    ]
+  }
+}
