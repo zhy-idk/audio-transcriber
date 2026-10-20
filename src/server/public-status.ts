@@ -10,11 +10,13 @@ import {
   INVALID_AUDIO_SELECTION_MESSAGE,
   MAX_PUBLIC_FAILURE_MESSAGE_CHARACTERS,
   isJobId,
+  isTranscriptToken,
   type FailedStatusUpdate,
   type JobId,
   type PublicFailureMessage,
   type StatusUpdate,
   type TranscriptText,
+  type TranscriptToken,
   type TranscriptionStatus,
 } from '../shared/transcription.js';
 
@@ -33,6 +35,8 @@ export interface BackendStatusInput {
   readonly jobId: JobId;
   readonly status: TranscriptionStatus;
   readonly transcriptText?: unknown;
+  readonly confidenceScore?: unknown;
+  readonly tokens?: unknown;
   readonly publicFailureMessage?: unknown;
   readonly failureMessage?: unknown;
   readonly credential?: unknown;
@@ -143,15 +147,26 @@ export function mapPublicStatus(input: unknown): StatusUpdate | null {
       return { jobId: candidate.jobId, status: 'queued' };
     case 'processing':
       return { jobId: candidate.jobId, status: 'processing' };
-    case 'completed':
+    case 'completed': {
       if (typeof candidate.transcriptText !== 'string') {
         return mapPublicFailure(candidate.jobId, undefined, GENERIC_PUBLIC_FAILURE_MESSAGE);
       }
+      const validConfidence =
+        typeof candidate.confidenceScore === 'number' && Number.isFinite(candidate.confidenceScore)
+          ? candidate.confidenceScore
+          : undefined;
+      const validTokens =
+        Array.isArray(candidate.tokens) && candidate.tokens.every(isTranscriptToken)
+          ? (candidate.tokens as readonly TranscriptToken[])
+          : undefined;
       return {
         jobId: candidate.jobId,
         status: 'completed',
         transcriptText: candidate.transcriptText as TranscriptText,
+        ...(validConfidence !== undefined ? { confidenceScore: validConfidence } : {}),
+        ...(validTokens !== undefined ? { tokens: validTokens } : {}),
       };
+    }
     case 'failed':
       return mapPublicFailure(
         candidate.jobId,

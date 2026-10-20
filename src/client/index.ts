@@ -103,3 +103,12 @@ export type {
   TranscriptionPageInstance,
   TranscriptionPageOptions,
 } from './transcription-page';
+export {
+  VoiceEnrollmentControl,
+  createVoiceEnrollmentControl,
+} from './voice-enrollment';
+export type {
+  VoiceEnrollmentElements,
+  VoiceEnrollmentInstance,
+  VoiceEnrollmentOptions,
+} from './voice-enrollment';

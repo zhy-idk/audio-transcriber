@@ -29,7 +29,7 @@ export function createUploadZone(
 ): UploadZone {
   const id = options.id ?? 'audio-file-input';
   const root = document.createElement('div');
-  root.className = 'min-w-0 rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-margin-md';
+  root.className = 'min-w-0 rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center transition hover:border-secondary/50 hover:bg-surface-container';
   root.setAttribute('role', 'group');
   root.setAttribute('aria-label', 'Audio file upload');
 
@@ -45,12 +45,12 @@ export function createUploadZone(
   fileInput.setAttribute('autocomplete', 'off');
 
   const browseButton = document.createElement('button');
-  browseButton.className = 'mt-margin-sm rounded-lg bg-secondary px-5 py-3 font-geist text-label-md text-on-secondary outline-focus outline-offset-focus focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary';
+  browseButton.className = 'mt-margin-sm inline-flex items-center justify-center rounded-lg bg-secondary px-5 py-2.5 font-geist text-label-md text-on-secondary shadow-sm transition hover:bg-secondary/90 outline-focus outline-offset-focus focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary';
   browseButton.textContent = BROWSE_AUDIO_FILE_LABEL;
 
   const filenameElement = document.createElement('p');
   filenameElement.id = `${id}-filename`;
-  filenameElement.className = 'mt-margin-sm break-words font-inter text-body-sm text-on-surface-variant';
+  filenameElement.className = 'mt-margin-sm break-words rounded-md border border-secondary/30 bg-surface px-3 py-2 font-inter text-body-sm font-medium text-secondary';
   filenameElement.hidden = true;
 
   const errorElement = document.createElement('p');

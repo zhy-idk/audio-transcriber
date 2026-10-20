@@ -1,4 +1,7 @@
-import { createApplicationServer } from './index.js';
+import {
+  createApplicationServer,
+  SpeakerIdentificationService,
+} from './index.js';
 import { createInMemoryJobCoordinator } from './job-coordinator.js';
 import {
   createProductionSonioxCredentialStore,
@@ -14,11 +17,13 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   throw new Error('SERVER_PORT must be an integer between 1 and 65535.');
 }
 
+const speakerService = new SpeakerIdentificationService();
 const coordinator = createInMemoryJobCoordinator({
   credentialStore: createProductionSonioxCredentialStore(),
   gateway: new SonioxApiGateway({ baseUrl, model }),
+  speakerService,
 });
-const server = createApplicationServer({ coordinator });
+const server = createApplicationServer({ coordinator, speakerService });
 
 server.listen(port, host, () => {
   console.log(`Transcription backend listening on http://${host}:${port}`);

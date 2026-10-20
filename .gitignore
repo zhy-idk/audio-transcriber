@@ -19,3 +19,34 @@ pnpm-debug.log*
 # Operating-system files
 .DS_Store
 Thumbs.db
+ehthumbs.db
+
+# Machine Learning Models & Local Profile Data
+models/*
+!models/.gitkeep
+data/*
+!data/.gitkeep
+temp/
+tmp/
+*.tmp
+*.wav.tmp
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.pytest_cache/
+
+# IDE and Editor Directories
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace

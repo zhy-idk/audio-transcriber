@@ -10,6 +10,7 @@ import { normalizeFailureMessage } from './state';
 
 export const CREATE_TRANSCRIPTION_PATH = '/api/transcriptions';
 export const CREATE_TRANSCRIPTION_ENDPOINT = CREATE_TRANSCRIPTION_PATH;
+export const SPEAKERS_PATH = '/api/speakers';
 export const TRANSCRIPTION_REQUEST_FAILURE_MESSAGE = 'Transcription request failed.';
 export const TRANSCRIPTION_STATUS_FAILURE_MESSAGE = 'Transcription status could not be retrieved.';
 export const INVALID_TRANSCRIPTION_RESPONSE_MESSAGE = 'The transcription service returned an invalid response.';
@@ -19,9 +20,18 @@ export type ClientFetch = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+export interface EnrollSpeakerResult {
+  readonly status: string;
+  readonly name: string;
+  readonly embeddingDim?: number | undefined;
+}
+
 export interface TranscriptionApi {
   create(file: AcceptedAudioFile, settings: TranscriptionSettings, signal?: AbortSignal): Promise<StatusUpdate>;
   getStatus(jobId: JobId, signal?: AbortSignal): Promise<StatusUpdate>;
+  listSpeakers?(signal?: AbortSignal): Promise<readonly string[]>;
+  enrollSpeaker?(name: string, audio: Blob | File, signal?: AbortSignal): Promise<EnrollSpeakerResult>;
+  removeSpeaker?(name: string, signal?: AbortSignal): Promise<boolean>;
 }
 
 export interface SameOriginTranscriptionApiOptions {
@@ -116,7 +126,8 @@ export class SameOriginTranscriptionApi implements TranscriptionApi {
   ): Promise<StatusUpdate> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('settings', settings);
+    const serializedSettings = typeof settings === 'string' ? settings : JSON.stringify(settings);
+    formData.append('settings', serializedSettings);
 
     let response: Response;
     try {
@@ -149,6 +160,94 @@ export class SameOriginTranscriptionApi implements TranscriptionApi {
     }
 
     return this.parseStatusResponse(response, TRANSCRIPTION_STATUS_FAILURE_MESSAGE);
+  }
+
+  public async listSpeakers(signal?: AbortSignal): Promise<readonly string[]> {
+    let response: Response;
+    try {
+      response = await this.fetcher(
+        SPEAKERS_PATH,
+        requestWithSignal({ method: 'GET' }, signal),
+      );
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+      throw new TranscriptionApiError('Failed to fetch enrolled speakers.');
+    }
+
+    const payload = await readJson(response);
+    if (!response.ok || !isRecord(payload) || !Array.isArray(payload.speakers)) {
+      throw new TranscriptionApiError(
+        publicFailureMessage(payload, 'Failed to fetch enrolled speakers.'),
+        response.status,
+      );
+    }
+
+    return payload.speakers.filter((s): s is string => typeof s === 'string');
+  }
+
+  public async enrollSpeaker(
+    name: string,
+    audio: Blob | File,
+    signal?: AbortSignal,
+  ): Promise<EnrollSpeakerResult> {
+    const formData = new FormData();
+    formData.append('name', name);
+    const filename = (audio instanceof File && audio.name) ? audio.name : 'voice_sample.wav';
+    formData.append('audio', audio, filename);
+
+    let response: Response;
+    try {
+      response = await this.fetcher(
+        `${SPEAKERS_PATH}/enroll`,
+        requestWithSignal({ method: 'POST', body: formData }, signal),
+      );
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+      throw new TranscriptionApiError('Failed to enroll speaker voice.');
+    }
+
+    const payload = await readJson(response);
+    if (!response.ok || !isRecord(payload)) {
+      throw new TranscriptionApiError(
+        publicFailureMessage(payload, 'Failed to enroll speaker voice.'),
+        response.status,
+      );
+    }
+
+    return {
+      status: String(payload.status ?? 'enrolled'),
+      name: String(payload.name ?? name),
+      embeddingDim: typeof payload.embeddingDim === 'number' ? payload.embeddingDim : undefined,
+    };
+  }
+
+  public async removeSpeaker(name: string, signal?: AbortSignal): Promise<boolean> {
+    let response: Response;
+    try {
+      response = await this.fetcher(
+        `${SPEAKERS_PATH}/${encodeURIComponent(name)}`,
+        requestWithSignal({ method: 'DELETE' }, signal),
+      );
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+      throw new TranscriptionApiError('Failed to remove speaker.');
+    }
+
+    const payload = await readJson(response);
+    if (!response.ok || !isRecord(payload)) {
+      throw new TranscriptionApiError(
+        publicFailureMessage(payload, 'Failed to remove speaker.'),
+        response.status,
+      );
+    }
+
+    return payload.status === 'removed';
   }
 
   private async parseStatusResponse(

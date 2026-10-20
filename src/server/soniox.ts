@@ -6,10 +6,13 @@
  */
 
 import { loadServerEnvironment } from './environment.js';
-import type {
-  AcceptedAudioFile,
-  TranscriptText,
-  TranscriptionSettings,
+import {
+  computeConfidenceScore,
+  formatDiarizedTranscript,
+  type AcceptedAudioFile,
+  type TranscriptText,
+  type TranscriptToken,
+  type TranscriptionSettings,
 } from '../shared/transcription.js';
 
 loadServerEnvironment();
@@ -45,7 +48,12 @@ export interface ProviderFailureContext {
 export type ProviderOutcome =
   | { readonly status: 'queued' }
   | { readonly status: 'processing' }
-  | { readonly status: 'completed'; readonly transcriptText: TranscriptText }
+  | {
+      readonly status: 'completed';
+      readonly transcriptText: TranscriptText;
+      readonly confidenceScore?: number | null;
+      readonly tokens?: readonly TranscriptToken[];
+    }
   | { readonly status: 'failed'; readonly context: ProviderFailureContext };
 
 /** Input accepted by the backend-private gateway. */
@@ -224,9 +232,37 @@ function providerOutcomeFromPayload(payload: unknown): ProviderOutcome {
     case 'completed':
     case 'complete':
     case 'done': {
-      const transcriptText = readStringIncludingEmpty(payload, ['transcript_text', 'transcriptText', 'transcript']);
+      let tokens: TranscriptToken[] | undefined;
+      if (isRecord(payload) && Array.isArray(payload.tokens)) {
+        tokens = [];
+        for (const rawToken of payload.tokens) {
+          if (isRecord(rawToken) && typeof rawToken.text === 'string') {
+            tokens.push({
+              text: rawToken.text,
+              confidence: typeof rawToken.confidence === 'number' ? rawToken.confidence : null,
+              speaker: typeof rawToken.speaker === 'string' ? rawToken.speaker : null,
+              startMs: typeof rawToken.start_ms === 'number' ? rawToken.start_ms : null,
+              endMs: typeof rawToken.end_ms === 'number' ? rawToken.end_ms : null,
+            });
+          }
+        }
+      }
+
+      let transcriptText = readStringIncludingEmpty(payload, ['transcript_text', 'transcriptText', 'transcript', 'text']);
+      if (tokens && tokens.length > 0 && tokens.some((t) => t.speaker !== null)) {
+        transcriptText = formatDiarizedTranscript(tokens);
+      } else if (transcriptText === undefined && tokens && tokens.length > 0) {
+        transcriptText = tokens.map((t) => t.text).join('');
+      }
+
       if (transcriptText !== undefined) {
-        return { status: 'completed', transcriptText };
+        const confidenceScore = tokens && tokens.length > 0 ? computeConfidenceScore(tokens) : undefined;
+        return {
+          status: 'completed',
+          transcriptText,
+          ...(confidenceScore !== undefined ? { confidenceScore } : {}),
+          ...(tokens && tokens.length > 0 ? { tokens } : {}),
+        };
       }
 
       return failedOutcome('protocol', 'The provider completion did not include transcript text.', {

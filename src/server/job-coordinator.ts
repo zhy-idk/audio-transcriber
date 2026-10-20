@@ -8,7 +8,11 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
+  formatDiarizedTranscript,
   isJobId,
   isTranscriptionSettings,
   type JobId,
@@ -40,6 +44,7 @@ import type {
   SonioxProviderHandle,
   SonioxSubmissionResult,
 } from './soniox.js';
+import type { SpeakerIdentificationService } from './speaker-identification.js';
 
 export interface AcceptedTranscriptionResult {
   readonly accepted: true;
@@ -60,8 +65,9 @@ export interface JobCoordinatorOptions {
   readonly repository: JobRepository;
   readonly credentialStore: SonioxCredentialStore;
   readonly gateway: SonioxGateway;
-  readonly clock?: BackendClock;
-  readonly jobIdGenerator?: JobIdGenerator;
+  readonly clock?: BackendClock | undefined;
+  readonly jobIdGenerator?: JobIdGenerator | undefined;
+  readonly speakerService?: SpeakerIdentificationService | undefined;
 }
 
 function defaultJobIdGenerator(): string {
@@ -108,6 +114,8 @@ function publicStatus(job: StoredTranscriptionJob): StatusUpdate {
     jobId: job.jobId,
     status: job.status,
     transcriptText: job.transcriptText ?? undefined,
+    confidenceScore: job.confidenceScore ?? undefined,
+    tokens: job.tokens ?? undefined,
     failureMessage: job.failureMessage ?? undefined,
   });
 
@@ -131,6 +139,8 @@ export class JobCoordinator {
   private readonly gateway: SonioxGateway;
   private readonly clock: BackendClock;
   private readonly jobIdGenerator: JobIdGenerator;
+  private readonly speakerService: SpeakerIdentificationService | undefined;
+  private readonly audioFiles = new Map<string, { readonly path: string; readonly mimeType: string; readonly filename: string }>();
 
   constructor(options: JobCoordinatorOptions) {
     this.repository = options.repository;
@@ -138,6 +148,7 @@ export class JobCoordinator {
     this.gateway = options.gateway;
     this.clock = options.clock ?? Date.now;
     this.jobIdGenerator = options.jobIdGenerator ?? defaultJobIdGenerator;
+    this.speakerService = options.speakerService;
   }
 
   /**
@@ -160,6 +171,21 @@ export class JobCoordinator {
       settings,
       createdAt: this.clock(),
     });
+
+    if (file && typeof (file as { arrayBuffer?: () => Promise<ArrayBuffer> }).arrayBuffer === 'function') {
+      try {
+        const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.wav';
+        const tempPath = join(tmpdir(), `job-${jobId}${ext}`);
+        await writeFile(tempPath, Buffer.from(await file.arrayBuffer()));
+        this.audioFiles.set(jobId, {
+          path: tempPath,
+          mimeType: file.type || 'audio/wav',
+          filename: file.name,
+        });
+      } catch {
+        // audio cache failure does not fail transcription
+      }
+    }
 
     let credential: SonioxCredential;
     try {
@@ -192,7 +218,8 @@ export class JobCoordinator {
       typeof submission.providerHandle === 'string' && submission.providerHandle.length > 0
         ? submission.providerHandle
         : null;
-    const updated = this.applyProviderOutcome(created.jobId, submission.outcome, providerHandle);
+    const processedOutcome = await this.relabelOutcomeIfDiarized(created.jobId, submission.outcome);
+    const updated = this.applyProviderOutcome(created.jobId, processedOutcome, providerHandle);
 
     return { accepted: true, status: publicStatus(updated) };
   }
@@ -245,7 +272,50 @@ export class JobCoordinator {
       return publicStatus(this.markFailed(jobId, SUBMISSION_FAILED_FAILURE_MESSAGE));
     }
 
-    return publicStatus(this.applyProviderOutcome(jobId, outcome));
+    const processedOutcome = await this.relabelOutcomeIfDiarized(jobId, outcome);
+    const updated = this.applyProviderOutcome(jobId, processedOutcome);
+    return publicStatus(updated);
+  }
+
+  private async relabelOutcomeIfDiarized(jobId: JobId, outcome: ProviderOutcome): Promise<ProviderOutcome> {
+    if (outcome.status !== 'completed' || !this.speakerService) {
+      return outcome;
+    }
+    const audioEntry = this.audioFiles.get(jobId);
+    if (!audioEntry || !outcome.tokens || !outcome.tokens.some((t) => Boolean(t.speaker))) {
+      return outcome;
+    }
+    try {
+      const speakers = await this.speakerService.list();
+      if (speakers.length > 0) {
+        const relabeled = await this.speakerService.relabel(audioEntry.path, outcome.tokens);
+        if (relabeled && Object.keys(relabeled.speaker_mapping).length > 0) {
+          return {
+            ...outcome,
+            tokens: relabeled.tokens,
+            transcriptText: formatDiarizedTranscript(relabeled.tokens),
+          };
+        }
+      }
+    } catch {
+      // Gracefully fall back to Soniox tokens
+    }
+    return outcome;
+  }
+
+  cleanupAudio(jobId: JobId): void {
+    const audioEntry = this.audioFiles.get(jobId);
+    if (audioEntry) {
+      this.audioFiles.delete(jobId);
+      void unlink(audioEntry.path).catch(() => undefined);
+    }
+  }
+
+  async getAudio(jobId: unknown): Promise<{ readonly path: string; readonly mimeType: string; readonly filename: string } | null> {
+    if (!isJobId(jobId)) {
+      return null;
+    }
+    return this.audioFiles.get(jobId) ?? null;
   }
 
   async getJobStatus(jobId: unknown): Promise<StatusUpdate | null> {
@@ -284,10 +354,13 @@ export class JobCoordinator {
         patch = providerHandle === undefined ? { status: 'processing' } : { status: 'processing', providerHandle };
         break;
       case 'completed':
-        patch =
-          providerHandle === undefined
-            ? { status: 'completed', transcriptText: outcome.transcriptText }
-            : { status: 'completed', transcriptText: outcome.transcriptText, providerHandle };
+        patch = {
+          status: 'completed',
+          transcriptText: outcome.transcriptText,
+          confidenceScore: outcome.confidenceScore,
+          tokens: outcome.tokens,
+          ...(providerHandle !== undefined ? { providerHandle } : {}),
+        };
         break;
       case 'failed': {
         const failureMessage = sanitizePublicFailureMessage(
@@ -325,6 +398,7 @@ export class JobCoordinator {
   }
 
   private acceptedFailure(jobId: JobId, failureMessage: unknown): AcceptedTranscriptionResult {
+    this.cleanupAudio(jobId);
     return {
       accepted: true,
       status: publicStatus(this.markFailed(jobId, failureMessage)),

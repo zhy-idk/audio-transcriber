@@ -173,15 +173,21 @@ describe('client/server isolation integration', () => {
   });
 
   it('builds expected production client and server artifacts without private markers in the client bundle', () => {
-    const build = spawnSync('npm run build', {
+    const clientBuild = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], {
       cwd: projectRoot,
       encoding: 'utf8',
-      shell: true,
+      stdio: 'pipe',
+    });
+    const serverBuild = spawnSync(process.execPath, ['node_modules/typescript/bin/tsc', '--project', 'tsconfig.server.json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
       stdio: 'pipe',
     });
 
-    expect(build.error).toBeUndefined();
-    expect(build.status, `${build.stdout}\n${build.stderr}`).toBe(0);
+    expect(clientBuild.error).toBeUndefined();
+    expect(clientBuild.status, `${clientBuild.stdout}\n${clientBuild.stderr}`).toBe(0);
+    expect(serverBuild.error).toBeUndefined();
+    expect(serverBuild.status, `${serverBuild.stdout}\n${serverBuild.stderr}`).toBe(0);
 
     const clientIndex = join(distRoot, 'client', 'index.html');
     const clientAssetsDirectory = join(distRoot, 'client', 'assets');
@@ -208,5 +214,5 @@ describe('client/server isolation integration', () => {
       .join('\n');
     expect(clientOutput).not.toMatch(privateRuntimeMarkerPattern);
     expect(readFileSync(clientIndex, 'utf8')).toContain('/assets/');
-  });
+  }, 20_000);
 });

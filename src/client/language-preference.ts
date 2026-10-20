@@ -117,12 +117,12 @@ export function createLanguagePreferenceControl(
 
   const label = document.createElement('label');
   label.htmlFor = id;
-  label.className = 'mb-2 block font-geist text-label-md uppercase text-on-surface-variant';
+  label.className = 'mb-1.5 block font-geist text-xs font-semibold uppercase tracking-wider text-on-surface-variant';
   label.textContent = 'Source language';
 
   const select = document.createElement('select');
   select.id = id;
-  select.className = 'w-full min-w-0 rounded-lg border border-outline-variant bg-surface-container-lowest px-5 py-3 font-inter text-body-sm text-on-surface outline-focus outline-offset-focus focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-60';
+  select.className = 'w-full min-w-0 rounded-lg border border-outline-variant bg-surface px-3.5 py-2 font-inter text-body-sm text-on-surface outline-focus outline-offset-focus focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary disabled:cursor-not-allowed disabled:opacity-60';
   select.setAttribute('aria-label', 'Source language');
 
   for (const option of languageOptions) {

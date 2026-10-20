@@ -50,6 +50,14 @@ export {
 } from './job-coordinator.js';
 export { SonioxApiGateway } from './soniox-api.js';
 export type { SonioxApiGatewayOptions } from './soniox-api.js';
+export { SpeakerIdentificationService } from './speaker-identification.js';
+export type {
+  EnrollResult,
+  IdentifyResult,
+  ListSpeakersResult,
+  RelabelResult,
+  SpeakerIdentificationConfig,
+} from './speaker-identification.js';
 export type {
   AcceptedTranscriptionResult,
   BackendClock,
@@ -62,7 +70,7 @@ export type {
 /** Creates the same-origin HTTP server boundary used by the backend API. */
 export function createApplicationServer(options: ApplicationServerOptions = {}): Server {
   return createServer((request, response) => {
-    void handleRequest(request, response, options.coordinator).catch(() => {
+    void handleRequest(request, response, options.coordinator, options.speakerService).catch(() => {
       if (response.headersSent) {
         response.destroy();
         return;

@@ -176,6 +176,8 @@ describe('TranscriptionPage', () => {
     expect(page.elements.failedLayout.hidden).toBe(true);
     expect(page.elements.completedLayout.hidden).toBe(true);
     expect(page.languageControl.control.value).toBe(AUTOMATIC_LANGUAGE_DETECTION);
+    expect(page.voiceEnrollment).toBeDefined();
+    expect(page.elements.voiceEnrollmentMount).toBeDefined();
     expect(page.uploadZone.elements.instructionElement.textContent).toBe(
       'Browse for or drag one audio file into this upload zone.',
     );

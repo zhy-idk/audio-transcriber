@@ -4,6 +4,7 @@ import {
   type ClientStatusUpdateInput,
   type JobId,
   type TranscriptText,
+  type TranscriptToken,
   type TranscriptionSettings,
   type TranscriptionStatus,
   type StatusUpdate,
@@ -18,6 +19,8 @@ export interface ClientTranscriptionState {
   readonly activeJobId: JobId | null;
   readonly status: TranscriptionStatus | 'idle';
   readonly transcriptText: TranscriptText | null;
+  readonly confidenceScore: number | null;
+  readonly tokens: readonly TranscriptToken[] | null;
   readonly failureMessage: string | null;
 }
 
@@ -30,6 +33,8 @@ export function createInitialClientState(
     activeJobId: null,
     status: 'idle',
     transcriptText: null,
+    confidenceScore: null,
+    tokens: null,
     failureMessage: null,
   };
 }
@@ -65,6 +70,12 @@ function applyStatusUpdate(
       ...state,
       status: update.status,
       transcriptText: update.transcriptText,
+      confidenceScore:
+        'confidenceScore' in update && typeof update.confidenceScore === 'number'
+          ? update.confidenceScore
+          : null,
+      tokens:
+        'tokens' in update && Array.isArray(update.tokens) ? update.tokens : null,
       failureMessage: null,
     };
   }
@@ -74,6 +85,8 @@ function applyStatusUpdate(
       ...state,
       status: update.status,
       transcriptText: null,
+      confidenceScore: null,
+      tokens: null,
       failureMessage: normalizeFailureMessage(update.failureMessage),
     };
   }
@@ -82,6 +95,8 @@ function applyStatusUpdate(
     ...state,
     status: update.status,
     transcriptText: null,
+    confidenceScore: null,
+    tokens: null,
     failureMessage: null,
   };
 }

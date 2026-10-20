@@ -9,9 +9,11 @@
 import {
   isJobId,
   isTranscriptionSettings,
+  isTranscriptToken,
   type JobId,
   type PublicFailureMessage,
   type TranscriptText,
+  type TranscriptToken,
   type TranscriptionSettings,
   type TranscriptionStatus,
 } from '../shared/transcription.js';
@@ -29,6 +31,8 @@ export interface StoredTranscriptionJob {
   readonly updatedAt: number;
   readonly providerHandle: SonioxProviderHandle | null;
   readonly transcriptText: TranscriptText | null;
+  readonly confidenceScore?: number | null;
+  readonly tokens?: readonly TranscriptToken[] | null;
   readonly failureMessage: PublicFailureMessage | null;
 }
 
@@ -51,6 +55,8 @@ export type JobLifecyclePatch =
   | {
       readonly status: 'completed';
       readonly transcriptText?: unknown;
+      readonly confidenceScore?: unknown;
+      readonly tokens?: unknown;
       readonly providerHandle?: SonioxProviderHandle | null;
     }
   | {
@@ -104,6 +110,8 @@ export class InMemoryJobRepository implements JobRepository {
       updatedAt: input.createdAt,
       providerHandle: null,
       transcriptText: null,
+      confidenceScore: null,
+      tokens: null,
       failureMessage: null,
     };
 
@@ -146,10 +154,12 @@ export class InMemoryJobRepository implements JobRepository {
           updatedAt,
           providerHandle,
           transcriptText: null,
+          confidenceScore: null,
+          tokens: null,
           failureMessage: null,
         };
         break;
-      case 'completed':
+      case 'completed': {
         if (typeof patch.transcriptText !== 'string') {
           next = {
             ...current,
@@ -157,19 +167,32 @@ export class InMemoryJobRepository implements JobRepository {
             updatedAt,
             providerHandle,
             transcriptText: null,
+            confidenceScore: null,
+            tokens: null,
             failureMessage: GENERIC_PUBLIC_FAILURE_MESSAGE,
           };
           break;
         }
+        const validConfidence =
+          typeof patch.confidenceScore === 'number' && Number.isFinite(patch.confidenceScore)
+            ? patch.confidenceScore
+            : null;
+        const validTokens =
+          Array.isArray(patch.tokens) && patch.tokens.every(isTranscriptToken)
+            ? (patch.tokens as readonly TranscriptToken[])
+            : null;
         next = {
           ...current,
           status: 'completed',
           updatedAt,
           providerHandle,
           transcriptText: patch.transcriptText,
+          confidenceScore: validConfidence,
+          tokens: validTokens,
           failureMessage: null,
         };
         break;
+      }
       case 'failed':
         next = {
           ...current,
@@ -177,6 +200,8 @@ export class InMemoryJobRepository implements JobRepository {
           updatedAt,
           providerHandle,
           transcriptText: null,
+          confidenceScore: null,
+          tokens: null,
           failureMessage: sanitizePublicFailureMessage(patch.failureMessage),
         };
         break;

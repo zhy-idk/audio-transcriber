@@ -6,7 +6,12 @@
  * behind the injected JobCoordinator.
  */
 
+import { randomUUID } from 'node:crypto';
+import { createReadStream, type Stats } from 'node:fs';
+import { stat, unlink, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   GENERIC_PUBLIC_FAILURE_MESSAGE,
   REJECTED_REQUEST_FAILURE_MESSAGE,
@@ -14,11 +19,16 @@ import {
   sanitizePublicFailureMessage,
 } from './public-status.js';
 import type { CreateTranscriptionResult } from './job-coordinator.js';
+import { SpeakerIdentificationService } from './speaker-identification.js';
 import type { StatusUpdate } from '../shared/transcription.js';
 
 const CREATE_TRANSCRIPTION_PATH = '/api/transcriptions';
 const STATUS_PATH_PREFIX = `${CREATE_TRANSCRIPTION_PATH}/`;
 const STATUS_PATH_SUFFIX = '/status';
+const AUDIO_PATH_SUFFIX = '/audio';
+const SPEAKERS_PATH = '/api/speakers';
+const ENROLL_SPEAKER_PATH = `${SPEAKERS_PATH}/enroll`;
+const REMOVE_SPEAKER_PATH = `${SPEAKERS_PATH}/remove`;
 const NOT_FOUND_FAILURE_MESSAGE = 'Transcription job was not found.';
 const MALFORMED_REQUEST_FAILURE_MESSAGE = 'The transcription request was rejected.';
 const SERVER_FAILURE_STATUS = 500;
@@ -27,11 +37,13 @@ const SERVER_FAILURE_STATUS = 500;
 export interface TranscriptionHttpCoordinator {
   create(selection: unknown, settings: unknown): Promise<CreateTranscriptionResult>;
   getStatus(jobId: unknown): Promise<StatusUpdate | null>;
+  getAudio?(jobId: unknown): Promise<{ readonly path: string; readonly mimeType: string; readonly filename?: string } | null>;
 }
 
 /** Options for the existing Node server factory. */
 export interface ApplicationServerOptions {
-  readonly coordinator?: TranscriptionHttpCoordinator;
+  readonly coordinator?: TranscriptionHttpCoordinator | undefined;
+  readonly speakerService?: SpeakerIdentificationService | undefined;
 }
 
 interface MultipartPart {
@@ -245,12 +257,60 @@ function parseMultipartForm(contentType: string | undefined, body: Buffer): Pars
   };
 }
 
+function parseEnrollForm(contentType: string | undefined, body: Buffer): {
+  readonly name: string | null;
+  readonly audioBuffer: Buffer | null;
+  readonly filename: string | null;
+} | null {
+  const parsedContentType = parseContentType(contentType);
+  if (parsedContentType.mediaType !== 'multipart/form-data' || parsedContentType.boundary === null) {
+    return null;
+  }
+
+  const parts = parseMultipartBody(body, parsedContentType.boundary);
+  if (parts === null) {
+    return null;
+  }
+
+  let name: string | null = null;
+  let audioBuffer: Buffer | null = null;
+  let filename: string | null = null;
+
+  for (const part of parts) {
+    if (part.name === 'name') {
+      name = part.body.toString('utf8').trim();
+    } else if (part.name === 'audio' || part.name === 'file') {
+      audioBuffer = part.body;
+      filename = part.filename;
+    }
+  }
+
+  return { name, audioBuffer, filename };
+}
+
 function routeJobId(pathname: string): string | null {
   if (!pathname.startsWith(STATUS_PATH_PREFIX) || !pathname.endsWith(STATUS_PATH_SUFFIX)) {
     return null;
   }
 
   const encodedJobId = pathname.slice(STATUS_PATH_PREFIX.length, -STATUS_PATH_SUFFIX.length);
+  if (encodedJobId.length === 0 || encodedJobId.includes('/')) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(encodedJobId);
+  } catch {
+    return null;
+  }
+}
+
+function routeAudioJobId(pathname: string): string | null {
+  if (!pathname.startsWith(STATUS_PATH_PREFIX) || !pathname.endsWith(AUDIO_PATH_SUFFIX)) {
+    return null;
+  }
+
+  const encodedJobId = pathname.slice(STATUS_PATH_PREFIX.length, -AUDIO_PATH_SUFFIX.length);
   if (encodedJobId.length === 0 || encodedJobId.includes('/')) {
     return null;
   }
@@ -345,12 +405,173 @@ async function handleStatus(
   sendJson(response, 200, publicStatus);
 }
 
-/** Handles the two same-origin transcription API operations. */
+async function handleAudio(
+  request: IncomingMessage,
+  response: ServerResponse,
+  coordinator: TranscriptionHttpCoordinator | undefined,
+  jobId: string,
+): Promise<void> {
+  if (coordinator === undefined || typeof coordinator.getAudio !== 'function') {
+    sendFailure(response, 404, 'Audio stream unavailable.');
+    return;
+  }
+
+  let audioInfo: { readonly path: string; readonly mimeType: string; readonly filename?: string } | null = null;
+  try {
+    audioInfo = await coordinator.getAudio(jobId);
+  } catch {
+    sendFailure(response, SERVER_FAILURE_STATUS, undefined);
+    return;
+  }
+
+  if (audioInfo === null) {
+    sendFailure(response, 404, 'Audio file not found.');
+    return;
+  }
+
+  let statResult: Stats;
+  try {
+    statResult = await stat(audioInfo.path);
+  } catch {
+    sendFailure(response, 404, 'Audio file not found.');
+    return;
+  }
+
+  const totalSize = statResult.size;
+  const rangeHeader = request.headers.range;
+
+  if (rangeHeader) {
+    const parts = rangeHeader.replace(/bytes=/i, '').split('-');
+    const start = parseInt(parts[0] ?? '', 10) || 0;
+    const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+    if (start >= totalSize || end >= totalSize || start > end) {
+      response.statusCode = 416;
+      response.setHeader('Content-Range', `bytes */${totalSize}`);
+      response.end();
+      return;
+    }
+
+    const chunkLength = end - start + 1;
+    response.statusCode = 206;
+    response.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    response.setHeader('Accept-Ranges', 'bytes');
+    response.setHeader('Content-Length', chunkLength);
+    response.setHeader('Content-Type', audioInfo.mimeType);
+    createReadStream(audioInfo.path, { start, end }).pipe(response);
+  } else {
+    response.statusCode = 200;
+    response.setHeader('Accept-Ranges', 'bytes');
+    response.setHeader('Content-Length', totalSize);
+    response.setHeader('Content-Type', audioInfo.mimeType);
+    createReadStream(audioInfo.path).pipe(response);
+  }
+}
+
+async function handleListSpeakers(
+  response: ServerResponse,
+  speakerService: SpeakerIdentificationService,
+): Promise<void> {
+  try {
+    const speakers = await speakerService.list();
+    sendJson(response, 200, { speakers });
+  } catch (err) {
+    sendFailure(response, SERVER_FAILURE_STATUS, err instanceof Error ? err.message : 'Failed to list speakers.');
+  }
+}
+
+async function handleEnrollSpeaker(
+  request: IncomingMessage,
+  response: ServerResponse,
+  speakerService: SpeakerIdentificationService,
+): Promise<void> {
+  let form: ReturnType<typeof parseEnrollForm>;
+  try {
+    form = parseEnrollForm(request.headers['content-type'], await readRequestBody(request));
+  } catch {
+    form = null;
+  }
+
+  if (form === null || !form.name || !form.audioBuffer || form.audioBuffer.length === 0) {
+    sendFailure(response, 400, 'Speaker name and audio sample are required.');
+    return;
+  }
+
+  const ext = form.filename && form.filename.includes('.')
+    ? form.filename.slice(form.filename.lastIndexOf('.'))
+    : '.wav';
+  const tempPath = join(tmpdir(), `speaker-enroll-${randomUUID()}${ext}`);
+
+  try {
+    await writeFile(tempPath, form.audioBuffer);
+    const result = await speakerService.enroll(form.name, tempPath);
+    sendJson(response, 200, {
+      status: 'enrolled',
+      name: result.name,
+      embeddingDim: result.embedding_dim,
+    });
+  } catch (error) {
+    sendFailure(response, 500, error instanceof Error ? error.message : 'Enrollment failed.');
+  } finally {
+    await unlink(tempPath).catch(() => undefined);
+  }
+}
+
+async function handleRemoveSpeaker(
+  request: IncomingMessage,
+  response: ServerResponse,
+  speakerService: SpeakerIdentificationService,
+  pathname: string,
+  requestUrl: URL,
+): Promise<void> {
+  let name: string | null = null;
+  if (pathname.startsWith(`${SPEAKERS_PATH}/`)) {
+    const encoded = pathname.slice(`${SPEAKERS_PATH}/`.length);
+    if (encoded.length > 0 && !encoded.includes('/')) {
+      try {
+        name = decodeURIComponent(encoded);
+      } catch {
+        name = null;
+      }
+    }
+  }
+
+  if (!name) {
+    name = requestUrl.searchParams.get('name');
+  }
+
+  if (!name && request.method === 'POST') {
+    try {
+      const body = await readRequestBody(request);
+      const parsed = JSON.parse(body.toString('utf8')) as Record<string, unknown>;
+      if (typeof parsed?.name === 'string') {
+        name = parsed.name.trim();
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!name || name.trim().length === 0) {
+    sendFailure(response, 400, 'Speaker name is required.');
+    return;
+  }
+
+  try {
+    const removed = await speakerService.remove(name.trim());
+    sendJson(response, 200, { status: removed ? 'removed' : 'not_found', name: name.trim() });
+  } catch (error) {
+    sendFailure(response, 500, error instanceof Error ? error.message : 'Failed to remove speaker.');
+  }
+}
+
+/** Handles the same-origin transcription and speaker identification operations. */
 export function createTranscriptionHttpHandler(
   coordinator: TranscriptionHttpCoordinator,
+  speakerService?: SpeakerIdentificationService,
 ): (request: IncomingMessage, response: ServerResponse) => void {
   return (request, response): void => {
-    void handleRequest(request, response, coordinator).catch(() => {
+    void handleRequest(request, response, coordinator, speakerService).catch(() => {
       sendFailure(response, SERVER_FAILURE_STATUS, undefined);
     });
   };
@@ -361,9 +582,11 @@ export async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   coordinator: TranscriptionHttpCoordinator | undefined,
+  speakerService?: SpeakerIdentificationService,
 ): Promise<void> {
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
   const pathname = requestUrl.pathname;
+  const resolvedSpeakerService = speakerService ?? new SpeakerIdentificationService();
 
   if (request.method === 'POST' && pathname === CREATE_TRANSCRIPTION_PATH) {
     await handleCreate(request, response, coordinator);
@@ -371,6 +594,17 @@ export async function handleRequest(
   }
 
   if (request.method === 'GET') {
+    if (pathname === SPEAKERS_PATH) {
+      await handleListSpeakers(response, resolvedSpeakerService);
+      return;
+    }
+
+    const audioJobId = routeAudioJobId(pathname);
+    if (audioJobId !== null) {
+      await handleAudio(request, response, coordinator, audioJobId);
+      return;
+    }
+
     const jobId = routeJobId(pathname);
     if (jobId !== null) {
       await handleStatus(response, coordinator, jobId);
@@ -378,8 +612,32 @@ export async function handleRequest(
     }
   }
 
-  if (pathname === CREATE_TRANSCRIPTION_PATH || routeJobId(pathname) !== null) {
-    response.setHeader('allow', pathname === CREATE_TRANSCRIPTION_PATH ? 'POST' : 'GET');
+  if (request.method === 'POST' && pathname === ENROLL_SPEAKER_PATH) {
+    await handleEnrollSpeaker(request, response, resolvedSpeakerService);
+    return;
+  }
+
+  if (
+    (request.method === 'DELETE' && (pathname.startsWith(`${SPEAKERS_PATH}/`) || pathname === SPEAKERS_PATH)) ||
+    (request.method === 'POST' && pathname === REMOVE_SPEAKER_PATH)
+  ) {
+    await handleRemoveSpeaker(request, response, resolvedSpeakerService, pathname, requestUrl);
+    return;
+  }
+
+  if (
+    pathname === CREATE_TRANSCRIPTION_PATH ||
+    routeJobId(pathname) !== null ||
+    routeAudioJobId(pathname) !== null ||
+    pathname === SPEAKERS_PATH ||
+    pathname.startsWith(`${SPEAKERS_PATH}/`)
+  ) {
+    const allow = pathname === CREATE_TRANSCRIPTION_PATH
+      ? 'POST'
+      : routeJobId(pathname) !== null || routeAudioJobId(pathname) !== null
+        ? 'GET'
+        : 'GET, POST, DELETE';
+    response.setHeader('allow', allow);
     sendFailure(response, 405, 'The requested method is not allowed.', 'The requested method is not allowed.');
     return;
   }

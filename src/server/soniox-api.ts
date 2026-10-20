@@ -1,7 +1,11 @@
 import {
   AUTOMATIC_LANGUAGE_DETECTION,
+  computeConfidenceScore,
+  formatDiarizedTranscript,
+  normalizeTranscriptionSettings,
   type AcceptedAudioFile,
   type TranscriptText,
+  type TranscriptToken,
   type TranscriptionSettings,
 } from '../shared/transcription.js';
 import type {
@@ -142,12 +146,34 @@ export class SonioxApiGateway implements SonioxGateway {
         return { providerHandle: null, outcome: uploaded.failure };
       }
 
+      const parsedSettings = normalizeTranscriptionSettings(submission.settings);
       const config: Record<string, unknown> = {
         model: this.model,
         file_id: uploaded.fileId,
       };
-      if (submission.settings !== AUTOMATIC_LANGUAGE_DETECTION) {
-        config.language_hints = [submission.settings];
+
+      if (parsedSettings.enableDiarization) {
+        config.enable_speaker_diarization = true;
+      }
+
+      if (parsedSettings.languageHints && parsedSettings.languageHints.length > 0) {
+        config.language_hints = [...parsedSettings.languageHints];
+      } else if (
+        parsedSettings.languagePreference &&
+        parsedSettings.languagePreference !== AUTOMATIC_LANGUAGE_DETECTION
+      ) {
+        config.language_hints = [parsedSettings.languagePreference];
+      }
+
+      const contextObj: Record<string, unknown> = {};
+      if (parsedSettings.contextTerms && parsedSettings.contextTerms.length > 0) {
+        contextObj.terms = [...parsedSettings.contextTerms];
+      }
+      if (parsedSettings.contextText && parsedSettings.contextText.trim().length > 0) {
+        contextObj.text = parsedSettings.contextText.trim();
+      }
+      if (Object.keys(contextObj).length > 0) {
+        config.context = contextObj;
       }
 
       const response = await this.request('/transcriptions', credential, {
@@ -246,10 +272,41 @@ export class SonioxApiGateway implements SonioxGateway {
         if (!transcriptResponse.ok) {
           return failure('provider', 'Soniox transcript retrieval failed.', transcriptPayload, transcriptResponse.status);
         }
-        const transcriptText = transcriptTextFromPayload(transcriptPayload);
-        return transcriptText === undefined
-          ? failure('protocol', 'Soniox completed without transcript text.', transcriptPayload)
-          : { status: 'completed', transcriptText };
+
+        let tokens: TranscriptToken[] | undefined;
+        if (isRecord(transcriptPayload) && Array.isArray(transcriptPayload.tokens)) {
+          tokens = [];
+          for (const rawToken of transcriptPayload.tokens) {
+            if (isRecord(rawToken) && typeof rawToken.text === 'string') {
+              tokens.push({
+                text: rawToken.text,
+                confidence: typeof rawToken.confidence === 'number' ? rawToken.confidence : null,
+                speaker: typeof rawToken.speaker === 'string' ? rawToken.speaker : null,
+                startMs: typeof rawToken.start_ms === 'number' ? rawToken.start_ms : null,
+                endMs: typeof rawToken.end_ms === 'number' ? rawToken.end_ms : null,
+              });
+            }
+          }
+        }
+
+        let transcriptText = readString(transcriptPayload, ['transcript_text', 'transcriptText', 'transcript', 'text'], true);
+        if (tokens && tokens.length > 0 && tokens.some((t) => t.speaker !== null)) {
+          transcriptText = formatDiarizedTranscript(tokens);
+        } else if (transcriptText === undefined && tokens && tokens.length > 0) {
+          transcriptText = tokens.map((t) => t.text).join('');
+        }
+
+        if (transcriptText === undefined) {
+          return failure('protocol', 'Soniox completed without transcript text.', transcriptPayload);
+        }
+
+        const confidenceScore = tokens && tokens.length > 0 ? computeConfidenceScore(tokens) : undefined;
+        return {
+          status: 'completed',
+          transcriptText,
+          ...(confidenceScore !== undefined ? { confidenceScore } : {}),
+          ...(tokens && tokens.length > 0 ? { tokens } : {}),
+        };
       }
       default:
         return failure('protocol', 'Soniox returned an unrecognized transcription state.', payload);

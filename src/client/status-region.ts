@@ -38,21 +38,29 @@ const STATUS_REGION_CLASSES = [
   'rounded-lg',
   'border',
   'border-outline-variant',
-  'bg-surface-container-low',
-  'p-margin-md',
+  'bg-surface',
+  'px-3.5',
+  'py-2',
+  'flex',
+  'flex-wrap',
+  'items-center',
+  'gap-2.5',
+  'shadow-sm',
 ] as const;
 
 const STATUS_LABEL_CLASSES = [
   'font-geist',
-  'text-label-md',
+  'text-xs',
+  'font-bold',
   'uppercase',
-  'text-on-surface-variant',
+  'tracking-wider',
+  'text-secondary',
 ] as const;
 
 const PROCESSING_INDICATOR_CLASSES = [
   'inline-block',
-  'h-3',
-  'w-3',
+  'h-2.5',
+  'w-2.5',
   'rounded-full',
   'bg-secondary',
   'animate-processing',

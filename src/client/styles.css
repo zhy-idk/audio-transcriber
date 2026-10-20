@@ -1,3 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes equalizer-pulse {
+  0%, 100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-equalizer-bar {
+  animation: equalizer-pulse 1.2s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+@keyframes progress-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer-bar {
+  background: linear-gradient(90deg, rgba(0, 88, 190, 0.15) 0%, rgba(0, 88, 190, 0.8) 50%, rgba(0, 88, 190, 0.15) 100%);
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s infinite linear;
+}

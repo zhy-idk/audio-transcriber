@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createServer, type ViteDevServer } from 'vite';
+import * as esbuild from 'esbuild';
 
 import {
   AUTOMATIC_LANGUAGE_DETECTION,
@@ -207,6 +208,7 @@ describe('browser preview and complete page workflow', () => {
   afterAll(async () => {
     await devServer?.close();
     devServer = undefined;
+    await esbuild.stop();
   });
 
   it('serves the local preview entry, client module, and Tailwind stylesheet without external requests', async () => {

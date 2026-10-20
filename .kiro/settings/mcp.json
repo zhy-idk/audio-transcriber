@@ -3,12 +3,15 @@
     "soniox-docs": {
       "url": "https://soniox.com/docs/api/mcp/mcp"
     },
-    "stitch": {
-      "url": "https://stitch.googleapis.com/mcp",
-      "type": "http",
-      "headers": {
-        "Accept": "application/json",
-        "X-Goog-Api-Key": "${STITCH_API_KEY}"
+    "stitch": { 
+      "command": "npx",
+      "args": [
+        "-y",
+        "@_davideast/stitch-mcp",
+        "proxy"
+      ],
+      "env": {
+        "STITCH_API_KEY": "${STITCH_API_KEY}"
       }
     }
   }

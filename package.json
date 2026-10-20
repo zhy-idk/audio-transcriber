@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "npm run build:server && npm run start:server",
+    "dev:server": "npm run build:server && node --watch dist/server/server/server-main.js",
+    "dev:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
     "start:server": "node dist/server/server/server-main.js",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
@@ -18,7 +19,8 @@
     "test:unit": "vitest run tests/unit",
     "test:property": "vitest run tests/property",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "speaker-id": "python scripts/speaker_id.py"
   },
   "dependencies": {
     "dotenv": "16.4.7"

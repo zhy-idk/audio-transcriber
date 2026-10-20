@@ -234,4 +234,22 @@ describe('same-origin transcription HTTP API', () => {
     expect(JSON.stringify(body)).not.toContain(credential);
     expect(JSON.stringify(body)).not.toContain(providerHandle);
   });
+
+  it('streams uploaded audio from /api/transcriptions/:jobId/audio', async () => {
+    const fakes = createCoordinator({ submissionStatus: 'completed' });
+    const server = await startServer({ coordinator: fakes.coordinator });
+
+    const createResponse = await createRequest(server.baseUrl, audioFile('recording.wav'));
+    const created = (await createResponse.json()) as { jobId: string };
+
+    const audioResponse = await fetch(`${server.baseUrl}/api/transcriptions/${encodeURIComponent(created.jobId)}/audio`);
+    expect(audioResponse.status).toBe(200);
+    expect(audioResponse.headers.get('content-type')).toContain('audio');
+    expect(audioResponse.headers.get('accept-ranges')).toBe('bytes');
+    const bytes = await audioResponse.arrayBuffer();
+    expect(bytes.byteLength).toBeGreaterThan(0);
+
+    const unknownResponse = await fetch(`${server.baseUrl}/api/transcriptions/unknown-id/audio`);
+    expect(unknownResponse.status).toBe(404);
+  });
 });
