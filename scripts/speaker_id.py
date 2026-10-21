@@ -23,6 +23,10 @@ DEFAULT_MODEL_PATH = os.environ.get(
     "SPEAKER_MODEL_PATH",
     str(Path(__file__).resolve().parent.parent / "models" / "campplus.onnx")
 )
+DEFAULT_SEGMENTATION_MODEL_PATH = os.environ.get(
+    "SPEAKER_SEGMENTATION_MODEL_PATH",
+    str(Path(__file__).resolve().parent.parent / "models" / "sherpa-onnx-pyannote-segmentation-3-0" / "model.onnx")
+)
 DEFAULT_PROFILES_PATH = os.environ.get(
     "SPEAKER_PROFILES_PATH",
     str(Path(__file__).resolve().parent.parent / "data" / "speaker_profiles.json")
@@ -42,6 +46,49 @@ def get_extractor(model_path: str = DEFAULT_MODEL_PATH) -> sherpa_onnx.SpeakerEm
         provider="cpu",
     )
     return sherpa_onnx.SpeakerEmbeddingExtractor(config)
+
+
+def get_diarizer(
+    model_path: str = DEFAULT_MODEL_PATH,
+    seg_model_path: str = DEFAULT_SEGMENTATION_MODEL_PATH,
+    num_clusters: int = -1,
+) -> sherpa_onnx.OfflineSpeakerDiarization:
+    if not os.path.exists(seg_model_path):
+        raise FileNotFoundError(
+            f"Segmentation model not found at '{seg_model_path}'. "
+            "Please ensure models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx is downloaded."
+        )
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"Speaker model not found at '{model_path}'. "
+            "Please ensure models/campplus.onnx is downloaded."
+        )
+
+    seg_config = sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
+        pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=seg_model_path),
+        num_threads=2,
+        debug=False,
+        provider="cpu",
+    )
+    emb_config = sherpa_onnx.SpeakerEmbeddingExtractorConfig(
+        model=model_path,
+        num_threads=2,
+        debug=False,
+        provider="cpu",
+    )
+    cluster_config = sherpa_onnx.FastClusteringConfig(
+        num_clusters=num_clusters if num_clusters > 0 else -1
+    )
+    config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
+        segmentation=seg_config,
+        embedding=emb_config,
+        clustering=cluster_config,
+        min_duration_on=0.3,
+        min_duration_off=0.5,
+    )
+    if not config.validate():
+        raise ValueError("Invalid speaker diarization config.")
+    return sherpa_onnx.OfflineSpeakerDiarization(config)
 
 
 def load_audio_samples(file_path: str, start_ms: int = None, end_ms: int = None):
@@ -242,6 +289,120 @@ def cmd_relabel(audio_path: str, tokens_json_str: str, threshold: float, model_p
     }
 
 
+def cmd_diarize(
+    audio_path: str,
+    tokens_json_str: str,
+    threshold: float,
+    model_path: str,
+    profiles_path: str,
+    seg_model_path: str = DEFAULT_SEGMENTATION_MODEL_PATH,
+):
+    tokens = json.loads(tokens_json_str) if isinstance(tokens_json_str, str) else tokens_json_str
+    if not tokens:
+        return {"status": "ok", "tokens": [], "speaker_mapping": {}}
+
+    samples_full, sample_rate = load_audio_samples(audio_path)
+
+    # 1. Run sherpa-onnx OfflineSpeakerDiarization
+    segments = []
+    try:
+        diarizer = get_diarizer(model_path, seg_model_path)
+        diar_result = diarizer.process(samples_full)
+        segments = diar_result.sort_by_start_time()
+    except Exception as e:
+        sys.stderr.write(f"Warning: sherpa-onnx diarization fallback: {e}\n")
+
+    # 2. Align tokens with diarized segments
+    if segments:
+        for token in tokens:
+            t_start = (token.get("startMs") or token.get("start_ms") or 0) / 1000.0
+            t_end = (token.get("endMs") or token.get("end_ms") or (t_start + 0.1)) / 1000.0
+            t_mid = (t_start + t_end) / 2.0
+
+            best_seg = None
+            min_dist = float("inf")
+            for seg in segments:
+                if seg.start <= t_mid <= seg.end:
+                    best_seg = seg
+                    break
+                dist = min(abs(t_mid - seg.start), abs(t_mid - seg.end))
+                if dist < min_dist:
+                    min_dist = dist
+                    best_seg = seg
+
+            spk_num = best_seg.speaker + 1 if best_seg else 1
+            token["speaker"] = str(spk_num)
+    else:
+        for token in tokens:
+            if not token.get("speaker"):
+                token["speaker"] = "1"
+
+    # 3. Match against enrolled profiles (CAM++)
+    profiles = load_profiles(profiles_path)
+    if not profiles:
+        return {"status": "ok", "tokens": tokens, "speaker_mapping": {}}
+
+    extractor = get_extractor(model_path)
+    speaker_segments = {}
+    for token in tokens:
+        spk = token.get("speaker")
+        if not spk:
+            continue
+        start = get_token_time(token, "startMs", "start_ms")
+        end = get_token_time(token, "endMs", "end_ms")
+        if start is not None and end is not None:
+            if spk not in speaker_segments:
+                speaker_segments[spk] = []
+            speaker_segments[spk].append((start, end))
+
+    speaker_mapping = {}
+    for spk, segs in speaker_segments.items():
+        speaker_samples = []
+        total_duration_ms = 0
+        for start, end in segs:
+            s_idx = int(start * sample_rate / 1000)
+            e_idx = int(end * sample_rate / 1000)
+            if s_idx < len(samples_full) and e_idx <= len(samples_full):
+                speaker_samples.append(samples_full[s_idx:e_idx])
+                total_duration_ms += (end - start)
+                if total_duration_ms >= 10000:
+                    break
+
+        if not speaker_samples:
+            continue
+
+        spk_audio = np.concatenate(speaker_samples)
+        if len(spk_audio) < int(sample_rate * 0.5):
+            continue
+
+        spk_emb = compute_embedding(extractor, spk_audio, sample_rate)
+
+        best_name = None
+        best_score = 0.0
+        for name, enrolled_emb in profiles.items():
+            score = cosine_similarity(spk_emb, enrolled_emb)
+            if score > best_score:
+                best_score = score
+                best_name = name
+
+        if best_score >= threshold:
+            speaker_mapping[spk] = best_name
+
+    relabeled_tokens = []
+    for token in tokens:
+        spk = token.get("speaker")
+        new_token = dict(token)
+        if spk in speaker_mapping:
+            new_token["speaker"] = speaker_mapping[spk]
+        relabeled_tokens.append(new_token)
+
+    return {
+        "status": "ok",
+        "tokens": relabeled_tokens,
+        "speaker_mapping": speaker_mapping,
+    }
+
+
 def main():
     common_parser = argparse.ArgumentParser(add_help=False)
     common_parser.add_argument("--model", default=DEFAULT_MODEL_PATH, help="Path to campplus.onnx")
@@ -275,6 +436,12 @@ def main():
     relabel_p.add_argument("tokens", help="JSON string or file path containing tokens")
     relabel_p.add_argument("--threshold", type=float, default=0.55, help="Similarity threshold")
 
+    diarize_p = subparsers.add_parser("diarize", parents=[common_parser], help="Diarize audio using sherpa-onnx and relabel tokens")
+    diarize_p.add_argument("audio", help="Path to full audio file")
+    diarize_p.add_argument("tokens", help="JSON string or file path containing tokens")
+    diarize_p.add_argument("--threshold", type=float, default=0.55, help="Similarity threshold")
+    diarize_p.add_argument("--seg-model", default=DEFAULT_SEGMENTATION_MODEL_PATH, help="Path to segmentation model.onnx")
+
     args = parser.parse_args()
 
     if args.command == "enroll":
@@ -291,6 +458,12 @@ def main():
             with open(tokens_val, "r", encoding="utf-8") as f:
                 tokens_val = f.read()
         res = cmd_relabel(args.audio, tokens_val, args.threshold, args.model, args.profiles)
+    elif args.command == "diarize":
+        tokens_val = args.tokens
+        if os.path.exists(tokens_val):
+            with open(tokens_val, "r", encoding="utf-8") as f:
+                tokens_val = f.read()
+        res = cmd_diarize(args.audio, tokens_val, args.threshold, args.model, args.profiles, args.seg_model)
     else:
         res = {"status": "invalid_command"}
 

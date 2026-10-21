@@ -50,6 +50,18 @@ export {
 } from './job-coordinator.js';
 export { SonioxApiGateway } from './soniox-api.js';
 export type { SonioxApiGatewayOptions } from './soniox-api.js';
+export { GroqApiGateway } from './groq-api.js';
+export type { GroqApiGatewayOptions } from './groq-api.js';
+export {
+  EnvironmentGroqCredentialStore,
+  toGroqCredential,
+} from './groq.js';
+export type {
+  GroqCredential,
+  GroqCredentialStore,
+  GroqGateway,
+  GroqSubmissionResult,
+} from './groq.js';
 export { SpeakerIdentificationService } from './speaker-identification.js';
 export type {
   EnrollResult,

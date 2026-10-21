@@ -110,6 +110,37 @@ describe('SpeakerIdentificationService', () => {
     expect(result.speaker_mapping).toEqual({ '1': 'Alice', '2': 'Bob' });
   });
 
+  it('runs sherpa-onnx diarization and token alignment', async () => {
+    const inputTokens = [
+      { text: 'Hello', startMs: 500, endMs: 1200 },
+      { text: 'World', startMs: 1400, endMs: 2500 },
+    ];
+
+    mockExecFile.mockImplementation((bin, args, callback) => {
+      callback(null, {
+        stdout: JSON.stringify({
+          status: 'ok',
+          tokens: [
+            { text: 'Hello', speaker: 'Alice', startMs: 500, endMs: 1200 },
+            { text: 'World', speaker: 'Bob', startMs: 1400, endMs: 2500 },
+          ],
+          speaker_mapping: { '1': 'Alice', '2': 'Bob' },
+        }),
+        stderr: '',
+      });
+    });
+
+    const result = await service.diarize('/audio/groq-transcription.wav', inputTokens, 0.6);
+    expect(result.tokens[0]?.speaker).toBe('Alice');
+    expect(result.tokens[1]?.speaker).toBe('Bob');
+    expect(result.speaker_mapping).toEqual({ '1': 'Alice', '2': 'Bob' });
+    expect(mockExecFile).toHaveBeenCalledWith(
+      'python3',
+      expect.arrayContaining(['diarize', '/audio/groq-transcription.wav', expect.stringContaining('Hello'), '--threshold', '0.6']),
+      expect.any(Function),
+    );
+  });
+
   it('throws helpful error when CLI outputs invalid JSON or fails', async () => {
     mockExecFile.mockImplementation((bin, args, callback) => {
       callback(new Error('Process failed'), { stdout: '', stderr: 'RuntimeError: File not found' });

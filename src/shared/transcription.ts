@@ -25,7 +25,10 @@ export interface TranscriptToken {
   readonly endMs?: number | null | undefined;
 }
 
+export type TranscriptionProvider = 'soniox' | 'groq';
+
 export interface StructuredTranscriptionSettings {
+  readonly provider?: TranscriptionProvider | undefined;
   readonly languagePreference?: string | undefined;
   readonly languageHints?: readonly string[] | undefined;
   readonly enableDiarization?: boolean | undefined;
@@ -197,6 +200,7 @@ export function serializeTranscriptionSettings(
 export function normalizeTranscriptionSettings(settings: unknown): StructuredTranscriptionSettings {
   if (isRecord(settings)) {
     return {
+      ...(typeof settings.provider === 'string' ? { provider: settings.provider === 'groq' ? 'groq' : 'soniox' } : {}),
       languagePreference: typeof settings.languagePreference === 'string' ? settings.languagePreference : AUTOMATIC_LANGUAGE_DETECTION,
       languageHints: Array.isArray(settings.languageHints) ? settings.languageHints.filter((h): h is string => typeof h === 'string') : [],
       enableDiarization: typeof settings.enableDiarization === 'boolean' ? settings.enableDiarization : false,

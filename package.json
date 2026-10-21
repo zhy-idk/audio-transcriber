@@ -1,5 +1,5 @@
 {
-  "name": "soniox-audio-transcription",
+  "name": "audio-transcriber",
   "version": "0.1.0",
   "private": true,
   "type": "module",

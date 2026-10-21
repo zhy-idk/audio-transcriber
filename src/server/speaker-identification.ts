@@ -111,4 +111,17 @@ export class SpeakerIdentificationService {
       String(threshold),
     ]);
   }
+
+  async diarize(
+    audioPath: string,
+    tokens: readonly TranscriptToken[],
+    threshold = 0.55,
+  ): Promise<RelabelResult> {
+    return this.runCommand<RelabelResult>('diarize', [
+      audioPath,
+      JSON.stringify(tokens),
+      '--threshold',
+      String(threshold),
+    ]);
+  }
 }

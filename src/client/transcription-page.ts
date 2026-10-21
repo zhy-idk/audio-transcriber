@@ -191,6 +191,8 @@ export class TranscriptionPage implements TranscriptionPageInstance {
   private playerErrorText: HTMLElement | null = null;
   private timestampButton: HTMLButtonElement | null = null;
   private showTimestamps = false;
+  private selectedProvider: 'soniox' | 'groq' = 'soniox';
+  private visualizerEngine: HTMLElement | null = null;
 
   public constructor(document: Document, options: TranscriptionPageOptions = {}) {
     this.currentState = createInitialClientState();
@@ -337,7 +339,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       'span',
       'font-geist text-sm font-bold text-on-surface',
     );
-    brandText.textContent = 'Soniox Audio Transcription';
+    brandText.textContent = 'Audio Transcriber';
     const statusBadge = createElement(
       document,
       'span',
@@ -379,6 +381,60 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     );
     const leftColumn = createElement(document, 'div', 'lg:col-span-7 min-w-0 space-y-5');
     const rightColumn = createElement(document, 'div', 'lg:col-span-5 min-w-0 space-y-5');
+
+    // Left Column Card 0: Engine Selection
+    const providerCard = createElement(
+      document,
+      'section',
+      'rounded-lg border border-outline-variant bg-surface-container-lowest p-4 space-y-3 min-w-0 shadow-sm',
+    );
+    const providerHeader = createElement(
+      document,
+      'div',
+      'flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant pb-2',
+    );
+    const providerTitle = createElement(
+      document,
+      'h3',
+      'font-geist text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5',
+    );
+    providerTitle.textContent = '⚡ Speech-to-Text Engine';
+    const providerBadge = createElement(
+      document,
+      'span',
+      'font-geist text-[11px] font-semibold text-secondary',
+    );
+    providerBadge.textContent = 'Soniox Active';
+    providerHeader.append(providerTitle, providerBadge);
+
+    const providerGrid = createElement(document, 'div', 'grid grid-cols-2 gap-2.5');
+
+    const sonioxBtn = createElement(
+      document,
+      'button',
+      'rounded-lg border border-secondary bg-secondary/10 p-2.5 text-left font-geist transition shadow-xs focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary',
+    );
+    sonioxBtn.type = 'button';
+    const sonioxBtnTitle = createElement(document, 'div', 'text-xs font-bold text-secondary flex items-center gap-1.5');
+    sonioxBtnTitle.textContent = '🎙️ Soniox ASR';
+    const sonioxBtnDesc = createElement(document, 'div', 'text-[10px] text-on-surface-variant mt-0.5');
+    sonioxBtnDesc.textContent = 'Async • Max 2GB • Multi-Hints';
+    sonioxBtn.append(sonioxBtnTitle, sonioxBtnDesc);
+
+    const groqBtn = createElement(
+      document,
+      'button',
+      'rounded-lg border border-outline-variant bg-surface p-2.5 text-left font-geist transition hover:bg-surface-container shadow-xs focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary',
+    );
+    groqBtn.type = 'button';
+    const groqBtnTitle = createElement(document, 'div', 'text-xs font-bold text-on-surface flex items-center gap-1.5');
+    groqBtnTitle.textContent = '⚡ Groq Whisper';
+    const groqBtnDesc = createElement(document, 'div', 'text-[10px] text-on-surface-variant mt-0.5');
+    groqBtnDesc.textContent = 'LPU Fast • Max 25MB • Sherpa Diarization';
+    groqBtn.append(groqBtnTitle, groqBtnDesc);
+
+    providerGrid.append(sonioxBtn, groqBtn);
+    providerCard.append(providerHeader, providerGrid);
 
     // Left Column Card 1: Audio Source Input
     const audioCard = createElement(
@@ -524,7 +580,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     );
     contextTermsInput.id = 'context-terms';
     contextTermsInput.type = 'text';
-    contextTermsInput.placeholder = 'e.g., Soniox, React, cardiology terms';
+    contextTermsInput.placeholder = 'e.g., transcribe, React, cardiology terms';
     contextTermsContainer.append(contextTermsLabel, contextTermsInput);
 
     const contextTextContainer = createElement(document, 'div', 'min-w-0');
@@ -561,7 +617,32 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     requestFailure.setAttribute('aria-live', 'assertive');
     requestFailure.hidden = true;
 
+    sonioxBtn.addEventListener('click', () => {
+      this.selectedProvider = 'soniox';
+      sonioxBtn.className = 'rounded-lg border border-secondary bg-secondary/10 p-2.5 text-left font-geist transition shadow-xs focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary';
+      sonioxBtnTitle.className = 'text-xs font-bold text-secondary flex items-center gap-1.5';
+      groqBtn.className = 'rounded-lg border border-outline-variant bg-surface p-2.5 text-left font-geist transition hover:bg-surface-container shadow-xs focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary';
+      groqBtnTitle.className = 'text-xs font-bold text-on-surface flex items-center gap-1.5';
+      providerBadge.textContent = 'Soniox Active';
+      if (this.visualizerEngine) this.visualizerEngine.textContent = 'Soniox Engine • CAM++ Active';
+      audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC (Max 2GB)';
+      diarizationHelp.textContent = 'Separate and label speech by distinct speakers using CAM++ offline voice biometric embeddings.';
+    });
+
+    groqBtn.addEventListener('click', () => {
+      this.selectedProvider = 'groq';
+      groqBtn.className = 'rounded-lg border border-secondary bg-secondary/10 p-2.5 text-left font-geist transition shadow-xs focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary';
+      groqBtnTitle.className = 'text-xs font-bold text-secondary flex items-center gap-1.5';
+      sonioxBtn.className = 'rounded-lg border border-outline-variant bg-surface p-2.5 text-left font-geist transition hover:bg-surface-container shadow-xs focus-visible:outline-2 focus-visible:outline focus-visible:outline-secondary';
+      sonioxBtnTitle.className = 'text-xs font-bold text-on-surface flex items-center gap-1.5';
+      providerBadge.textContent = 'Groq Whisper Active';
+      if (this.visualizerEngine) this.visualizerEngine.textContent = 'Groq Whisper • Sherpa Diarization';
+      audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC (Max 25MB)';
+      diarizationHelp.textContent = 'Offline speaker diarization via Sherpa-ONNX + CAM++ voice biometrics.';
+    });
+
     leftColumn.append(
+      providerCard,
       audioCard,
       settingsCard,
       contextContainer,
@@ -615,7 +696,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     const stepsData = [
       { num: '1', title: 'File Validation', status: 'Ready', desc: 'Audio headers checked', active: true, done: true },
       { num: '2', title: 'CAM++ Diarization', status: 'Queued', desc: '192-d voice clustering', active: true, done: false },
-      { num: '3', title: 'Acoustic ASR', status: 'Queued', desc: 'Soniox neural recognition', active: false, done: false },
+      { num: '3', title: 'Acoustic ASR', status: 'Queued', desc: 'Neural speech recognition', active: false, done: false },
       { num: '4', title: 'Profile Relabeling', status: 'Pending', desc: 'Match enrolled speakers', active: false, done: false },
     ];
     for (const s of stepsData) {
@@ -702,7 +783,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     const procStepsData = [
       { num: '1', title: 'Ingestion & Decode', status: 'Completed', desc: 'PCM 16kHz mono stream', done: true, active: false },
       { num: '2', title: 'Neural Diarization', status: 'In Progress', desc: 'CAM++ speaker clusters', done: false, active: true },
-      { num: '3', title: 'Acoustic ASR', status: 'Active', desc: 'Soniox neural phonemes', done: false, active: true },
+      { num: '3', title: 'Acoustic ASR', status: 'Active', desc: 'Neural speech phonemes', done: false, active: true },
       { num: '4', title: 'Profile Relabeling', status: 'Next', desc: 'Biometric verification', done: false, active: false },
     ];
     for (const s of procStepsData) {
@@ -744,6 +825,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     visualizerLabel.textContent = '📊 Live Acoustic Spectrum';
     const visualizerEngine = createElement(document, 'span', 'rounded bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-secondary');
     visualizerEngine.textContent = 'Soniox Engine • CAM++ Active';
+    this.visualizerEngine = visualizerEngine;
     visualizerHeader.append(visualizerLabel, visualizerEngine);
 
     const visualizerBars = createElement(document, 'div', 'flex items-end justify-center gap-1.5 h-12 py-1');
@@ -1089,11 +1171,12 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       .filter((s) => s.length > 0);
     const text = this.elements.contextTextInput.value.trim();
 
-    if (!diarization && hints.length === 0 && terms.length === 0 && text.length === 0) {
+    if (this.selectedProvider === 'soniox' && !diarization && hints.length === 0 && terms.length === 0 && text.length === 0) {
       return langPref;
     }
 
     return serializeTranscriptionSettings({
+      provider: this.selectedProvider,
       languagePreference: langPref,
       languageHints: hints,
       enableDiarization: diarization,

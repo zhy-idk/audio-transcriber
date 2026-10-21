@@ -15,6 +15,7 @@ import {
   formatDiarizedTranscript,
   isJobId,
   isTranscriptionSettings,
+  normalizeTranscriptionSettings,
   type JobId,
   type PublicFailureMessage,
   type StatusUpdate,
@@ -44,6 +45,14 @@ import type {
   SonioxProviderHandle,
   SonioxSubmissionResult,
 } from './soniox.js';
+import {
+  EnvironmentGroqCredentialStore,
+  type GroqCredential,
+  type GroqCredentialStore,
+  type GroqGateway,
+  type GroqSubmissionResult,
+} from './groq.js';
+import { GroqApiGateway } from './groq-api.js';
 import type { SpeakerIdentificationService } from './speaker-identification.js';
 
 export interface AcceptedTranscriptionResult {
@@ -68,6 +77,8 @@ export interface JobCoordinatorOptions {
   readonly clock?: BackendClock | undefined;
   readonly jobIdGenerator?: JobIdGenerator | undefined;
   readonly speakerService?: SpeakerIdentificationService | undefined;
+  readonly groqCredentialStore?: GroqCredentialStore | undefined;
+  readonly groqGateway?: GroqGateway | undefined;
 }
 
 function defaultJobIdGenerator(): string {
@@ -140,6 +151,8 @@ export class JobCoordinator {
   private readonly clock: BackendClock;
   private readonly jobIdGenerator: JobIdGenerator;
   private readonly speakerService: SpeakerIdentificationService | undefined;
+  private readonly groqCredentialStore: GroqCredentialStore;
+  private readonly groqGateway: GroqGateway;
   private readonly audioFiles = new Map<string, { readonly path: string; readonly mimeType: string; readonly filename: string }>();
 
   constructor(options: JobCoordinatorOptions) {
@@ -149,6 +162,8 @@ export class JobCoordinator {
     this.clock = options.clock ?? Date.now;
     this.jobIdGenerator = options.jobIdGenerator ?? defaultJobIdGenerator;
     this.speakerService = options.speakerService;
+    this.groqCredentialStore = options.groqCredentialStore ?? new EnvironmentGroqCredentialStore();
+    this.groqGateway = options.groqGateway ?? new GroqApiGateway();
   }
 
   /**
@@ -165,6 +180,7 @@ export class JobCoordinator {
       };
     }
 
+    const parsedSettings = normalizeTranscriptionSettings(settings);
     const jobId = this.createUniqueJobId();
     const created = this.repository.create({
       jobId,
@@ -185,6 +201,53 @@ export class JobCoordinator {
       } catch {
         // audio cache failure does not fail transcription
       }
+    }
+
+    if (parsedSettings.provider === 'groq') {
+      let groqCredential: GroqCredential;
+      try {
+        groqCredential = await this.groqCredentialStore.getCredential();
+        if (!isUsableCredential(groqCredential)) {
+          return this.acceptedFailure(
+            created.jobId,
+            'Groq credential is unavailable. Please set GROQ_API_KEY in your .env file.',
+          );
+        }
+      } catch {
+        return this.acceptedFailure(
+          created.jobId,
+          'Groq credential is unavailable. Please set GROQ_API_KEY in your .env file.',
+        );
+      }
+
+      let submission: GroqSubmissionResult;
+      try {
+        submission = await this.groqGateway.submit({ file, settings }, groqCredential);
+      } catch {
+        return this.acceptedFailure(created.jobId, SUBMISSION_FAILED_FAILURE_MESSAGE);
+      }
+
+      let outcome = submission.outcome;
+      if (outcome.status === 'completed' && parsedSettings.enableDiarization && this.speakerService) {
+        const audioEntry = this.audioFiles.get(created.jobId);
+        if (audioEntry && outcome.tokens && outcome.tokens.length > 0) {
+          try {
+            const diarized = await this.speakerService.diarize(audioEntry.path, outcome.tokens);
+            if (diarized && diarized.tokens && diarized.tokens.length > 0) {
+              outcome = {
+                ...outcome,
+                tokens: diarized.tokens,
+                transcriptText: formatDiarizedTranscript(diarized.tokens),
+              };
+            }
+          } catch {
+            // Keep raw tokens if diarization fails
+          }
+        }
+      }
+
+      const updated = this.applyProviderOutcome(created.jobId, outcome, null);
+      return { accepted: true, status: publicStatus(updated) };
     }
 
     let credential: SonioxCredential;

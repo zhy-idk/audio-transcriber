@@ -44,6 +44,7 @@ export type {
   StructuredTranscriptionSettings,
   TranscriptText,
   TranscriptToken,
+  TranscriptionProvider,
   TranscriptionSettings,
   TranscriptionStatus,
 } from './transcription.js';
