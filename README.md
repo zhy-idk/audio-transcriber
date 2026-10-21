@@ -28,6 +28,11 @@ Designed with a modern workbench layout (*Technical Precision* design system), r
 * **Automatic Voice Profile Matching**:
   * Diarized speaker clusters (`Speaker 1`, `Speaker 2`) are matched against enrolled voice profiles using cosine similarity.
   * Relabels speech turns directly with verified names (e.g., `Alice`, `Bob`).
+* **New Speaker Detection & In-Audio Enrollment**:
+  * Automatically detects when a recording contains speakers not yet in your Voice Library.
+  * Interactive popup `(N) New Speaker(s) Detected`: label each person and automatically enroll their voice sample directly from the recording's audio segments into the CAM++ Voice Library, or choose *"Let them be Speaker N"*.
+  * Future recordings automatically recognize the newly enrolled people.
+  * On-demand `👥 Label Speakers` toolbar button to reopen the naming dialog anytime.
 * **Voice Enrollment Studio**:
   * **File Upload**: Enroll voice samples from WAV, MP3, M4A, FLAC, or OGG audio files with automatic normalization.
   * **Live Microphone Recording**: In-browser microphone capture with input device selection, live waveform meter, recording timer, and suggested enrollment scripts (10–15 seconds recommended).
@@ -180,7 +185,7 @@ Open your browser to: **`http://127.0.0.1:5173`**
 
 ## 🧪 Testing & Quality Verification
 
-The test suite contains **120 tests** spanning unit, integration, and property-based tests:
+The test suite contains **123 tests** spanning unit, integration, and property-based tests:
 
 ```bash
 # Run all vitest test suites

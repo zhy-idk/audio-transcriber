@@ -141,4 +141,55 @@ describe('Speaker HTTP API', () => {
     expect(res.status).toBe(405);
     expect(body).toEqual({ failureMessage: 'The requested method is not allowed.' });
   });
+
+  it('POST /api/transcriptions/:jobId/enroll-speaker enrolls speaker from job recording', async () => {
+    const mockService = {
+      enrollFromAudio: vi.fn().mockResolvedValue({ status: 'enrolled', name: 'Charlie', embedding_dim: 192 }),
+    } as unknown as SpeakerIdentificationService;
+
+    const mockCoordinator = {
+      create: vi.fn(),
+      getStatus: vi.fn(),
+      getAudio: vi.fn().mockResolvedValue({ path: '/tmp/job-123.wav', mimeType: 'audio/wav' }),
+      getJob: vi.fn().mockResolvedValue({
+        jobId: 'job-123',
+        tokens: [
+          { text: 'Hello', speaker: '1', startMs: 0, endMs: 1000 },
+          { text: 'World', speaker: '1', startMs: 1200, endMs: 2500 },
+        ],
+      }),
+    };
+
+    const serverInstance = createApplicationServer({ coordinator: mockCoordinator, speakerService: mockService });
+    await new Promise<void>((resolve, reject) => {
+      serverInstance.once('error', reject);
+      serverInstance.listen(0, '127.0.0.1', () => resolve());
+    });
+    const address = serverInstance.address() as { port: number };
+    const running: RunningServer = {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      close: () => new Promise<void>((resolve, reject) => {
+        serverInstance.close((error) => (error === undefined ? resolve() : reject(error)));
+      }),
+    };
+    runningServers.push(running);
+
+    const res = await fetch(`${running.baseUrl}/api/transcriptions/job-123/enroll-speaker`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Charlie', speakerId: '1' }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('ok');
+    expect(body.enrolled).toHaveLength(1);
+    expect(body.enrolled[0].name).toBe('Charlie');
+    expect(mockService.enrollFromAudio).toHaveBeenCalledWith(
+      'Charlie',
+      '/tmp/job-123.wav',
+      expect.any(Array),
+      '1',
+    );
+  });
 });

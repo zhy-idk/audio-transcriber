@@ -21,11 +21,13 @@ import {
 import type { CreateTranscriptionResult } from './job-coordinator.js';
 import { SpeakerIdentificationService } from './speaker-identification.js';
 import type { StatusUpdate } from '../shared/transcription.js';
+import type { StoredTranscriptionJob } from './job-repository.js';
 
 const CREATE_TRANSCRIPTION_PATH = '/api/transcriptions';
 const STATUS_PATH_PREFIX = `${CREATE_TRANSCRIPTION_PATH}/`;
 const STATUS_PATH_SUFFIX = '/status';
 const AUDIO_PATH_SUFFIX = '/audio';
+const ENROLL_SPEAKER_SUFFIX = '/enroll-speaker';
 const SPEAKERS_PATH = '/api/speakers';
 const ENROLL_SPEAKER_PATH = `${SPEAKERS_PATH}/enroll`;
 const REMOVE_SPEAKER_PATH = `${SPEAKERS_PATH}/remove`;
@@ -38,6 +40,7 @@ export interface TranscriptionHttpCoordinator {
   create(selection: unknown, settings: unknown): Promise<CreateTranscriptionResult>;
   getStatus(jobId: unknown): Promise<StatusUpdate | null>;
   getAudio?(jobId: unknown): Promise<{ readonly path: string; readonly mimeType: string; readonly filename?: string } | null>;
+  getJob?(jobId: unknown): Promise<StoredTranscriptionJob | null>;
 }
 
 /** Options for the existing Node server factory. */
@@ -322,6 +325,23 @@ function routeAudioJobId(pathname: string): string | null {
   }
 }
 
+function routeEnrollSpeakerJobId(pathname: string): string | null {
+  if (!pathname.startsWith(STATUS_PATH_PREFIX) || !pathname.endsWith(ENROLL_SPEAKER_SUFFIX)) {
+    return null;
+  }
+
+  const encodedJobId = pathname.slice(STATUS_PATH_PREFIX.length, -ENROLL_SPEAKER_SUFFIX.length);
+  if (encodedJobId.length === 0 || encodedJobId.includes('/')) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(encodedJobId);
+  } catch {
+    return null;
+  }
+}
+
 function publicCreateStatus(result: CreateTranscriptionResult): StatusUpdate | null {
   if (!result.accepted) {
     return null;
@@ -480,6 +500,78 @@ async function handleListSpeakers(
   }
 }
 
+async function handleEnrollSpeakerFromJob(
+  request: IncomingMessage,
+  response: ServerResponse,
+  coordinator: TranscriptionHttpCoordinator | undefined,
+  speakerService: SpeakerIdentificationService,
+  jobId: string,
+): Promise<void> {
+  if (!coordinator || typeof coordinator.getAudio !== 'function' || typeof coordinator.getJob !== 'function') {
+    sendFailure(response, 500, 'Coordinator does not support speaker enrollment.');
+    return;
+  }
+
+  const audio = await coordinator.getAudio(jobId);
+  if (!audio) {
+    sendFailure(response, 404, 'Audio for this transcription job is not available.');
+    return;
+  }
+
+  const job = await coordinator.getJob(jobId);
+  if (!job || !job.tokens || job.tokens.length === 0) {
+    sendFailure(response, 400, 'No diarized tokens found for this transcription job.');
+    return;
+  }
+
+  const bodyBytes = await readRequestBody(request);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyBytes.toString('utf8'));
+  } catch {
+    sendFailure(response, 400, 'Invalid JSON body.');
+    return;
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    sendFailure(response, 400, 'JSON object required.');
+    return;
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const enrollments: Array<{ name: string; speakerId: string }> = [];
+
+  if (Array.isArray(record.speakers)) {
+    for (const item of record.speakers) {
+      if (typeof item === 'object' && item !== null) {
+        const itemRec = item as Record<string, unknown>;
+        if (typeof itemRec.name === 'string' && typeof itemRec.speakerId === 'string') {
+          enrollments.push({ name: itemRec.name.trim(), speakerId: itemRec.speakerId.trim() });
+        }
+      }
+    }
+  } else if (typeof record.name === 'string' && typeof record.speakerId === 'string') {
+    enrollments.push({ name: record.name.trim(), speakerId: record.speakerId.trim() });
+  }
+
+  if (enrollments.length === 0) {
+    sendFailure(response, 400, 'At least one speaker name and speakerId are required.');
+    return;
+  }
+
+  try {
+    const results = [];
+    for (const { name, speakerId } of enrollments) {
+      if (name.length === 0) continue;
+      const res = await speakerService.enrollFromAudio(name, audio.path, job.tokens, speakerId);
+      results.push(res);
+    }
+    sendJson(response, 200, { status: 'ok', enrolled: results });
+  } catch (error) {
+    sendFailure(response, 500, error instanceof Error ? error.message : 'Failed to enroll speaker from audio.');
+  }
+}
+
 async function handleEnrollSpeaker(
   request: IncomingMessage,
   response: ServerResponse,
@@ -617,6 +709,12 @@ export async function handleRequest(
     return;
   }
 
+  const enrollSpeakerJobId = routeEnrollSpeakerJobId(pathname);
+  if (request.method === 'POST' && enrollSpeakerJobId !== null) {
+    await handleEnrollSpeakerFromJob(request, response, coordinator, resolvedSpeakerService, enrollSpeakerJobId);
+    return;
+  }
+
   if (
     (request.method === 'DELETE' && (pathname.startsWith(`${SPEAKERS_PATH}/`) || pathname === SPEAKERS_PATH)) ||
     (request.method === 'POST' && pathname === REMOVE_SPEAKER_PATH)
@@ -629,10 +727,11 @@ export async function handleRequest(
     pathname === CREATE_TRANSCRIPTION_PATH ||
     routeJobId(pathname) !== null ||
     routeAudioJobId(pathname) !== null ||
+    routeEnrollSpeakerJobId(pathname) !== null ||
     pathname === SPEAKERS_PATH ||
     pathname.startsWith(`${SPEAKERS_PATH}/`)
   ) {
-    const allow = pathname === CREATE_TRANSCRIPTION_PATH
+    const allow = pathname === CREATE_TRANSCRIPTION_PATH || routeEnrollSpeakerJobId(pathname) !== null
       ? 'POST'
       : routeJobId(pathname) !== null || routeAudioJobId(pathname) !== null
         ? 'GET'

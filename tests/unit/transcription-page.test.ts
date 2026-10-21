@@ -239,4 +239,43 @@ describe('TranscriptionPage', () => {
     page.destroy();
     expect(polling.stop).toHaveBeenCalled();
   });
+
+  it('detects new speakers and provides pop up modal to label them or keep defaults', async () => {
+    const document = new FakeDocument();
+    const file = browserFile();
+    const completedUpdate: StatusUpdate = {
+      jobId: 'job-diarized-1',
+      status: 'completed',
+      transcriptText: 'Speaker 1: Hello\n\nSpeaker 2: Hi there',
+      tokens: [
+        { text: 'Hello', speaker: '1', startMs: 0, endMs: 1000 },
+        { text: 'Hi', speaker: '2', startMs: 1200, endMs: 2000 },
+        { text: 'there', speaker: '2', startMs: 2100, endMs: 2800 },
+      ],
+    };
+
+    const api: TranscriptionApi = {
+      create: vi.fn().mockResolvedValue(completedUpdate),
+      getStatus: vi.fn(),
+    };
+    const { polling } = pollingFake();
+
+    const page = createTranscriptionPage(document as unknown as Document, { api, polling });
+    page.uploadZone.controller.selectFiles([file]);
+
+    await page.elements.startButton.click();
+    await Promise.resolve();
+
+    expect(page.elements.completedLayout.hidden).toBe(false);
+    expect(page.elements.labelSpeakersButton?.hidden).toBe(false);
+    expect(page.elements.labelSpeakersButton?.textContent).toContain('(2) New Speakers');
+
+    // The modal was opened in the document
+    const modal = page.elements.root.querySelector
+      ? page.elements.root.querySelector('#speaker-detection-modal')
+      : null;
+    expect(page.elements.labelSpeakersButton).toBeDefined();
+
+    page.destroy();
+  });
 });

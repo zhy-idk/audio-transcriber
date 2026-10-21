@@ -381,6 +381,13 @@ export class JobCoordinator {
     return this.audioFiles.get(jobId) ?? null;
   }
 
+  async getJob(jobId: unknown): Promise<StoredTranscriptionJob | null> {
+    if (!isJobId(jobId)) {
+      return null;
+    }
+    return this.repository.find(jobId);
+  }
+
   async getJobStatus(jobId: unknown): Promise<StatusUpdate | null> {
     return this.getStatus(jobId);
   }

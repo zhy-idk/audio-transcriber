@@ -124,4 +124,18 @@ export class SpeakerIdentificationService {
       String(threshold),
     ]);
   }
+
+  async enrollFromAudio(
+    name: string,
+    audioPath: string,
+    tokens: readonly TranscriptToken[],
+    speakerId: string,
+  ): Promise<EnrollResult> {
+    return this.runCommand<EnrollResult>('enroll-from-audio', [
+      name,
+      audioPath,
+      JSON.stringify(tokens),
+      speakerId,
+    ]);
+  }
 }

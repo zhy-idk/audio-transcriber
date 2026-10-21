@@ -141,6 +141,35 @@ describe('SpeakerIdentificationService', () => {
     );
   });
 
+  it('enrolls speaker from audio recording segments', async () => {
+    const inputTokens = [
+      { text: 'Hello', speaker: '1', startMs: 500, endMs: 1200 },
+      { text: 'World', speaker: '1', startMs: 1400, endMs: 2500 },
+    ];
+
+    mockExecFile.mockImplementation((bin, args, callback) => {
+      callback(null, {
+        stdout: JSON.stringify({
+          status: 'enrolled',
+          name: 'Charlie',
+          speaker_id: '1',
+          embedding_dim: 192,
+          duration_ms: 1800,
+        }),
+        stderr: '',
+      });
+    });
+
+    const result = await service.enrollFromAudio('Charlie', '/audio/meeting.wav', inputTokens, '1');
+    expect(result.status).toBe('enrolled');
+    expect(result.name).toBe('Charlie');
+    expect(mockExecFile).toHaveBeenCalledWith(
+      'python3',
+      expect.arrayContaining(['enroll-from-audio', 'Charlie', '/audio/meeting.wav', expect.stringContaining('Hello'), '1']),
+      expect.any(Function),
+    );
+  });
+
   it('throws helpful error when CLI outputs invalid JSON or fails', async () => {
     mockExecFile.mockImplementation((bin, args, callback) => {
       callback(new Error('Process failed'), { stdout: '', stderr: 'RuntimeError: File not found' });

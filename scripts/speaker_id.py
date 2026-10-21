@@ -163,9 +163,66 @@ def cmd_enroll(name: str, audio_path: str, model_path: str, profiles_path: str):
     emb = compute_embedding(extractor, samples, sample_rate)
 
     profiles = load_profiles(profiles_path)
-    profiles[name] = emb
+    profiles[name] = emb.tolist() if hasattr(emb, "tolist") else list(emb)
     save_profiles(profiles, profiles_path)
     return {"status": "enrolled", "name": name, "embedding_dim": len(emb)}
+
+
+def cmd_enroll_from_audio(
+    name: str,
+    audio_path: str,
+    tokens_json: str,
+    speaker_id: str,
+    model_path: str = DEFAULT_MODEL_PATH,
+    profiles_path: str = DEFAULT_PROFILES_PATH,
+):
+    tokens = json.loads(tokens_json) if isinstance(tokens_json, str) else tokens_json
+    samples_full, sample_rate = load_audio_samples(audio_path)
+    extractor = get_extractor(model_path)
+
+    speaker_samples = []
+    total_duration_ms = 0
+    spk_target = str(speaker_id).strip().lower()
+
+    for token in tokens:
+        raw_spk = str(token.get("speaker") or "").strip().lower()
+        if (
+            raw_spk != spk_target
+            and raw_spk != f"speaker {spk_target}"
+            and raw_spk.replace("speaker", "").strip() != spk_target
+        ):
+            continue
+
+        start = get_token_time(token, "startMs", "start_ms")
+        end = get_token_time(token, "endMs", "end_ms")
+        if start is not None and end is not None and end > start:
+            s_idx = int(start * sample_rate / 1000)
+            e_idx = int(end * sample_rate / 1000)
+            if s_idx < len(samples_full) and e_idx <= len(samples_full):
+                speaker_samples.append(samples_full[s_idx:e_idx])
+                total_duration_ms += (end - start)
+                if total_duration_ms >= 15000:
+                    break
+
+    if not speaker_samples:
+        raise ValueError(f"No audio segments found for speaker '{speaker_id}'.")
+
+    spk_audio = np.concatenate(speaker_samples)
+    if len(spk_audio) < int(sample_rate * 0.3):
+        raise ValueError(f"Audio for speaker '{speaker_id}' is too short to enroll ({total_duration_ms}ms).")
+
+    emb = compute_embedding(extractor, spk_audio, sample_rate)
+    profiles = load_profiles(profiles_path)
+    profiles[name] = emb.tolist() if hasattr(emb, "tolist") else list(emb)
+    save_profiles(profiles, profiles_path)
+
+    return {
+        "status": "enrolled",
+        "name": name,
+        "speaker_id": speaker_id,
+        "embedding_dim": len(emb),
+        "duration_ms": total_duration_ms,
+    }
 
 
 def cmd_list(profiles_path: str):
@@ -423,6 +480,16 @@ def main():
     enroll_p.add_argument("name", help="Speaker name (e.g. Alice)")
     enroll_p.add_argument("audio", help="Path to WAV voice sample")
 
+    enroll_audio_p = subparsers.add_parser(
+        "enroll-from-audio",
+        parents=[common_parser],
+        help="Enroll a speaker from audio recording segments",
+    )
+    enroll_audio_p.add_argument("name", help="Speaker name (e.g. Charlie)")
+    enroll_audio_p.add_argument("audio", help="Path to audio file")
+    enroll_audio_p.add_argument("tokens", help="JSON string or file path containing tokens")
+    enroll_audio_p.add_argument("speaker_id", help="Speaker ID (e.g. 1)")
+
     subparsers.add_parser("list", parents=[common_parser], help="List enrolled speakers")
 
     remove_p = subparsers.add_parser("remove", parents=[common_parser], help="Remove an enrolled speaker")
@@ -449,6 +516,19 @@ def main():
 
     if args.command == "enroll":
         res = cmd_enroll(args.name, args.audio, args.model, args.profiles)
+    elif args.command == "enroll-from-audio":
+        tokens_val = args.tokens
+        if os.path.exists(tokens_val):
+            with open(tokens_val, "r", encoding="utf-8") as f:
+                tokens_val = f.read()
+        res = cmd_enroll_from_audio(
+            args.name,
+            args.audio,
+            tokens_val,
+            args.speaker_id,
+            args.model,
+            args.profiles,
+        )
     elif args.command == "list":
         res = cmd_list(args.profiles)
     elif args.command == "remove":

@@ -33,6 +33,7 @@ import {
   formatDiarizedTranscript,
   serializeTranscriptionSettings,
   type StatusUpdate,
+  type TranscriptToken,
   type TranscriptionSettings,
 } from '../shared/transcription';
 
@@ -67,6 +68,7 @@ export interface TranscriptionPageElements {
   readonly downloadButton: HTMLButtonElement;
   readonly downloadFailure: HTMLElement;
   readonly completedStartNewButton: HTMLButtonElement;
+  readonly labelSpeakersButton?: HTMLButtonElement;
 }
 
 export interface TranscriptionPageOptions {
@@ -193,6 +195,9 @@ export class TranscriptionPage implements TranscriptionPageInstance {
   private showTimestamps = false;
   private selectedProvider: 'soniox' | 'groq' = 'soniox';
   private visualizerEngine: HTMLElement | null = null;
+  private labelSpeakersButton: HTMLButtonElement | null = null;
+  private speakerModalBackdrop: HTMLElement | null = null;
+  private promptedJobIds = new Set<string>();
 
   public constructor(document: Document, options: TranscriptionPageOptions = {}) {
     this.currentState = createInitialClientState();
@@ -284,7 +289,9 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     }
 
     this.destroyed = true;
+    this.closeSpeakerLabelModal();
     this.cleanupAudio();
+    this.closeSpeakerLabelModal();
     this.polling.stop();
     if (this.ownsPolling) {
       this.polling.destroy();
@@ -1042,6 +1049,19 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     transcriptLabel.textContent = '📜 Diarized Transcript Feed';
 
     const transcriptActions = createElement(document, 'div', 'flex items-center gap-2');
+    const labelSpeakersButton = createElement(
+      document,
+      'button',
+      'hidden rounded-md border border-secondary/40 bg-secondary/10 px-2.5 py-1 font-geist text-xs font-semibold text-secondary hover:bg-secondary/20 transition shadow-xs flex items-center gap-1',
+    );
+    labelSpeakersButton.type = 'button';
+    labelSpeakersButton.id = 'label-speakers-btn';
+    labelSpeakersButton.textContent = '👥 Label Speakers';
+    labelSpeakersButton.addEventListener('click', () => {
+      this.openSpeakerLabelModal();
+    });
+    this.labelSpeakersButton = labelSpeakersButton;
+
     const timestampButton = createElement(
       document,
       'button',
@@ -1071,7 +1091,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
         }, 2000);
       }
     });
-    transcriptActions.append(timestampButton, copyButton);
+    transcriptActions.append(labelSpeakersButton, timestampButton, copyButton);
     transcriptHeader.append(transcriptLabel, transcriptActions);
 
     const transcriptViewerMount = createElement(
@@ -1153,6 +1173,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       downloadButton,
       downloadFailure,
       completedStartNewButton,
+      labelSpeakersButton: this.labelSpeakersButton ?? undefined,
     };
 
     return { root, elements };
@@ -1212,6 +1233,10 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       );
       this.render();
 
+      if (initialUpdate.status === 'completed' && initialUpdate.tokens && initialUpdate.tokens.length > 0) {
+        this.checkAndPromptNewSpeakers(initialUpdate.jobId, initialUpdate.tokens);
+      }
+
       if (this.currentState.status === 'queued' || this.currentState.status === 'processing') {
         this.polling.start(this.currentState.activeJobId as string, {
           onUpdate: (update) => this.handleStatusUpdate(update),
@@ -1237,6 +1262,9 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     this.render();
     if (update.status === 'completed' || update.status === 'failed') {
       this.polling.stop();
+      if (update.status === 'completed' && update.tokens && update.tokens.length > 0) {
+        this.checkAndPromptNewSpeakers(update.jobId, update.tokens);
+      }
     }
   }
 
@@ -1270,6 +1298,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     }
 
     this.cleanupAudio();
+    this.closeSpeakerLabelModal();
     this.polling.stop();
     this.elements.languageHintsInput.value = '';
     this.elements.diarizationCheckbox.checked = false;
@@ -1612,6 +1641,273 @@ export class TranscriptionPage implements TranscriptionPageInstance {
     this.elements.downloadFailure.textContent = this.downloadFailureMessage ?? '';
     this.elements.downloadFailure.hidden = this.downloadFailureMessage === null;
     this.elements.completedStartNewButton.hidden = layout !== 'completed';
+
+    if (this.labelSpeakersButton) {
+      if (layout === 'completed' && this.currentState.tokens && this.currentState.tokens.length > 0) {
+        const remainingNew = this.getDetectedNewSpeakers(this.currentState.tokens);
+        if (remainingNew.length > 0) {
+          this.labelSpeakersButton.textContent = `👥 (${remainingNew.length}) New Speaker${remainingNew.length > 1 ? 's' : ''}`;
+          this.labelSpeakersButton.hidden = false;
+        } else if (this.currentState.tokens.some((t) => t.speaker)) {
+          this.labelSpeakersButton.textContent = '👥 Rename Speakers';
+          this.labelSpeakersButton.hidden = false;
+        } else {
+          this.labelSpeakersButton.hidden = true;
+        }
+      } else {
+        this.labelSpeakersButton.hidden = true;
+      }
+    }
+  }
+
+  private getDetectedNewSpeakers(tokens: readonly TranscriptToken[]): Array<{
+    id: string;
+    label: string;
+    turnCount: number;
+    totalDurationMs: number;
+  }> {
+    const speakerStats = new Map<string, { turnCount: number; totalDurationMs: number }>();
+    let prevSpeaker: string | null = null;
+
+    for (const token of tokens) {
+      const spk = token.speaker?.trim();
+      if (!spk) continue;
+
+      if (!speakerStats.has(spk)) {
+        speakerStats.set(spk, { turnCount: 0, totalDurationMs: 0 });
+      }
+      const stats = speakerStats.get(spk)!;
+      if (spk !== prevSpeaker) {
+        stats.turnCount += 1;
+        prevSpeaker = spk;
+      }
+      const start = typeof token.startMs === 'number' ? token.startMs : null;
+      const end = typeof token.endMs === 'number' ? token.endMs : null;
+      if (start !== null && end !== null && end > start) {
+        stats.totalDurationMs += (end - start);
+      }
+    }
+
+    const enrolled = new Set(this.voiceEnrollment.control.enrolledSpeakers.map((s: string) => s.trim().toLowerCase()));
+    const result: Array<{ id: string; label: string; turnCount: number; totalDurationMs: number }> = [];
+
+    for (const [spk, stats] of speakerStats.entries()) {
+      const isEnrolled = enrolled.has(spk.toLowerCase());
+      const isGenericNumber = /^(speaker\s*)?\d+$/i.test(spk);
+      if (!isEnrolled || isGenericNumber) {
+        const numericMatch = /^(?:speaker\s*)?(\d+)$/i.exec(spk);
+        const displayLabel = numericMatch ? `Speaker ${numericMatch[1]}` : spk;
+        result.push({
+          id: spk,
+          label: displayLabel,
+          turnCount: stats.turnCount,
+          totalDurationMs: stats.totalDurationMs,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  private checkAndPromptNewSpeakers(jobId: string, tokens: readonly TranscriptToken[]): void {
+    if (this.promptedJobIds.has(jobId)) {
+      return;
+    }
+    this.promptedJobIds.add(jobId);
+
+    const newSpeakers = this.getDetectedNewSpeakers(tokens);
+    if (newSpeakers.length > 0) {
+      this.openSpeakerLabelModal(newSpeakers);
+    }
+  }
+
+  private closeSpeakerLabelModal(): void {
+    if (this.speakerModalBackdrop) {
+      if (typeof this.speakerModalBackdrop.remove === 'function') {
+        this.speakerModalBackdrop.remove();
+      } else if (this.speakerModalBackdrop.parentElement) {
+        this.speakerModalBackdrop.parentElement.removeChild(this.speakerModalBackdrop);
+      }
+      this.speakerModalBackdrop = null;
+    }
+  }
+
+  private openSpeakerLabelModal(speakers?: Array<{ id: string; label: string; turnCount: number; totalDurationMs: number }>): void {
+    const targetSpeakers = speakers ?? this.getDetectedNewSpeakers(this.currentState.tokens ?? []);
+    if (targetSpeakers.length === 0) {
+      return;
+    }
+
+    if (this.speakerModalBackdrop) {
+      this.closeSpeakerLabelModal();
+    }
+
+    const doc = this.elements.root.ownerDocument || document;
+    const backdrop = createElement(doc, 'div', 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto');
+    backdrop.id = 'speaker-detection-modal';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-labelledby', 'speaker-modal-title');
+
+    const dialog = createElement(doc, 'div', 'relative w-full max-w-lg rounded-2xl border border-outline-variant bg-surface p-6 shadow-2xl space-y-5 my-8');
+
+    // Header
+    const header = createElement(doc, 'div', 'space-y-1.5');
+    const badge = createElement(doc, 'span', 'inline-flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1 font-geist text-xs font-semibold text-secondary');
+    badge.textContent = `👥 (${targetSpeakers.length}) New Speaker${targetSpeakers.length > 1 ? 's' : ''} Detected`;
+
+    const title = createElement(doc, 'h2', 'font-geist text-lg font-bold text-on-surface');
+    title.id = 'speaker-modal-title';
+    title.textContent = `Label New Speaker${targetSpeakers.length > 1 ? 's' : ''}`;
+
+    const subtitle = createElement(doc, 'p', 'font-inter text-xs text-on-surface-variant leading-relaxed');
+    subtitle.textContent = `We found ${targetSpeakers.length} speaker${targetSpeakers.length > 1 ? 's' : ''} not yet in your Voice Library. Name them below to update this transcript and save their voice biometrics for future automatic identification.`;
+
+    header.append(badge, title, subtitle);
+
+    // List of speakers
+    const listContainer = createElement(doc, 'div', 'space-y-3 max-h-[50vh] overflow-y-auto pr-1');
+    const inputsMap = new Map<string, { nameInput: HTMLInputElement; enrollCheck: HTMLInputElement }>();
+
+    for (const spk of targetSpeakers) {
+      const card = createElement(doc, 'div', 'rounded-xl border border-outline-variant bg-surface-container-low p-4 space-y-2.5');
+
+      const cardTop = createElement(doc, 'div', 'flex items-center justify-between text-xs font-geist');
+      const spkTitle = createElement(doc, 'span', 'font-bold text-on-surface flex items-center gap-1.5');
+      spkTitle.textContent = `🎙️ ${spk.label}`;
+
+      const spkStats = createElement(doc, 'span', 'rounded bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface-variant');
+      const sec = Math.max(1, Math.round(spk.totalDurationMs / 1000));
+      spkStats.textContent = `${spk.turnCount} turn${spk.turnCount > 1 ? 's' : ''} • ~${sec}s speech`;
+      cardTop.append(spkTitle, spkStats);
+
+      const inputRow = createElement(doc, 'div', 'space-y-1.5');
+      const input = createElement(doc, 'input', 'w-full rounded-lg border border-outline-variant bg-surface px-3.5 py-2 font-geist text-sm text-on-surface outline-focus focus:border-secondary focus:ring-1 focus:ring-secondary');
+      input.type = 'text';
+      input.id = `speaker-input-${spk.id}`;
+      input.placeholder = `Name for ${spk.label} (e.g. Alice, Bob)`;
+
+      const checkLabel = createElement(doc, 'label', 'flex items-center gap-2 cursor-pointer text-xs font-geist text-on-surface font-medium select-none');
+      const checkbox = createElement(doc, 'input', 'rounded border-outline-variant text-secondary focus:ring-secondary');
+      checkbox.type = 'checkbox';
+      checkbox.checked = true;
+      const checkText = createElement(doc, 'span');
+      checkText.textContent = 'Save voice profile to Voice Library (for future auto-detection)';
+      checkLabel.append(checkbox, checkText);
+
+      inputRow.append(input, checkLabel);
+      card.append(cardTop, inputRow);
+      listContainer.append(card);
+
+      inputsMap.set(spk.id, { nameInput: input, enrollCheck: checkbox });
+    }
+
+    // Modal Error Banner
+    const modalError = createElement(doc, 'div', 'hidden rounded-lg border border-red-300 bg-red-50 p-2.5 font-geist text-xs text-red-800');
+
+    // Footer actions
+    const footer = createElement(doc, 'div', 'flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-outline-variant');
+
+    const defaultBtn = createElement(doc, 'button', 'rounded-lg border border-outline-variant bg-surface px-4 py-2 font-geist text-xs font-semibold text-on-surface hover:bg-surface-container transition shadow-xs');
+    defaultBtn.type = 'button';
+    defaultBtn.textContent = targetSpeakers.length > 1 ? 'Let them be Speaker N' : `Let it be ${targetSpeakers[0]?.label ?? 'Speaker'}`;
+    defaultBtn.addEventListener('click', () => {
+      this.closeSpeakerLabelModal();
+    });
+
+    const saveBtn = createElement(doc, 'button', 'rounded-lg bg-secondary px-5 py-2 font-geist text-xs font-bold text-on-secondary shadow-sm hover:bg-secondary/90 transition flex items-center gap-1.5');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Apply & Save Speakers';
+    saveBtn.addEventListener('click', () => {
+      void (async () => {
+        saveBtn.disabled = true;
+        defaultBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        modalError.hidden = true;
+
+        try {
+          await this.applySpeakerLabels(inputsMap);
+          this.closeSpeakerLabelModal();
+        } catch (err) {
+          saveBtn.disabled = false;
+          defaultBtn.disabled = false;
+          saveBtn.textContent = 'Apply & Save Speakers';
+          modalError.textContent = err instanceof Error ? err.message : 'Failed to save speaker profiles.';
+          modalError.hidden = false;
+        }
+      })();
+    });
+
+    footer.append(defaultBtn, saveBtn);
+    dialog.append(header, listContainer, modalError, footer);
+    backdrop.append(dialog);
+
+    const mountTarget = doc.body ?? this.elements.root;
+    mountTarget.append(backdrop);
+    this.speakerModalBackdrop = backdrop;
+  }
+
+  private async applySpeakerLabels(
+    inputsMap: Map<string, { nameInput: HTMLInputElement; enrollCheck: HTMLInputElement }>,
+  ): Promise<void> {
+    const currentTokens = this.currentState.tokens ?? [];
+    if (currentTokens.length === 0) {
+      return;
+    }
+
+    const renameMap = new Map<string, string>();
+    const toEnroll: Array<{ name: string; speakerId: string }> = [];
+
+    for (const [speakerId, { nameInput, enrollCheck }] of inputsMap.entries()) {
+      const trimmed = nameInput.value.trim();
+      if (trimmed.length > 0) {
+        renameMap.set(speakerId, trimmed);
+        renameMap.set(`Speaker ${speakerId}`, trimmed);
+        renameMap.set(`speaker ${speakerId}`, trimmed);
+        if (enrollCheck.checked) {
+          toEnroll.push({ name: trimmed, speakerId });
+        }
+      }
+    }
+
+    if (renameMap.size === 0) {
+      return;
+    }
+
+    if (toEnroll.length > 0 && this.currentState.activeJobId && typeof fetch !== 'undefined') {
+      try {
+        const res = await fetch(`/api/transcriptions/${encodeURIComponent(this.currentState.activeJobId)}/enroll-speaker`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ speakers: toEnroll }),
+        });
+        if (!res.ok) {
+          const errData = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+          const msg = typeof errData.failureMessage === 'string' ? errData.failureMessage : 'Server rejected speaker enrollment.';
+          throw new Error(msg);
+        }
+      } catch (e) {
+        console.warn('Speaker enrollment warning:', e);
+      }
+    }
+
+    const updatedTokens: TranscriptToken[] = currentTokens.map((t) => {
+      if (t.speaker && renameMap.has(t.speaker)) {
+        return { ...t, speaker: renameMap.get(t.speaker)! };
+      }
+      return t;
+    });
+
+    const updatedText = formatDiarizedTranscript(updatedTokens, { includeTimestamps: this.showTimestamps });
+
+    this.currentState = {
+      ...this.currentState,
+      transcriptText: updatedText,
+      tokens: updatedTokens,
+    };
+    this.viewer.render(this.currentState);
+    void this.voiceEnrollment.control.loadSpeakers();
+    this.render();
   }
 }
 
