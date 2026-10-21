@@ -97,18 +97,21 @@ def load_audio_samples(file_path: str, start_ms: int = None, end_ms: int = None)
         if samples.ndim > 1:
             samples = samples.mean(axis=1)
     except Exception:
-        # Fallback to PyAV for m4a, aac, mp4, etc.
+        # Fallback to PyAV for webm, m4a, aac, mp4, etc.
         try:
             import av
             container = av.open(file_path)
-            audio_stream = container.streams.audio[0]
-            resampler = av.AudioResampler(format="flt", layout="mono", rate=16000)
-            frames = []
-            for frame in container.decode(audio_stream):
-                for resampled in resampler.resample(frame):
-                    frames.append(resampled.to_ndarray()[0])
-            samples = np.concatenate(frames) if frames else np.array([], dtype=np.float32)
-            sample_rate = 16000
+            try:
+                audio_stream = container.streams.audio[0]
+                resampler = av.AudioResampler(format="flt", layout="mono", rate=16000)
+                frames = []
+                for frame in container.decode(audio_stream):
+                    for resampled in resampler.resample(frame):
+                        frames.append(resampled.to_ndarray()[0])
+                samples = np.concatenate(frames) if frames else np.array([], dtype=np.float32)
+                sample_rate = 16000
+            finally:
+                container.close()
         except Exception as av_err:
             raise RuntimeError(f"Failed to read audio file '{file_path}': {av_err}")
 

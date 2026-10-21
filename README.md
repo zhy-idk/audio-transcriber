@@ -10,7 +10,7 @@ Designed with a modern workbench layout (*Technical Precision* design system), r
 
 ### 🎙️ Dual Speech-to-Text Engines
 * **Soniox Asynchronous Neural STT**:
-  * Large audio uploads up to 2GB across WAV, MP3, M4A, and FLAC.
+  * Large audio uploads up to 2GB across WAV, MP3, M4A, FLAC, and WEBM.
   * Multi-language hints (`en`, `tl`, `es`, etc.) and automatic detection.
   * Custom domain terms and topic framing context.
   * Word-level confidence scores (< 80% uncertainty review highlights) and millisecond timestamps.
@@ -18,7 +18,7 @@ Designed with a modern workbench layout (*Technical Precision* design system), r
   * Ultra-fast LPUs delivering near-instant transcription.
   * Direct word-level and segment-level timestamp granularities (`startMs`, `endMs`).
   * Seamless support for vocabulary hints and context prompts.
-  * File uploads up to 25MB.
+  * File uploads up to 25MB across WAV, MP3, M4A, FLAC, and WEBM.
 
 ### 👥 Offline Speaker Biometrics & Diarization (Sherpa-ONNX)
 * **Privacy-First Neural Embeddings**: Runs 100% locally via Sherpa-ONNX with a 192-dimensional CAM++ neural network (`campplus.onnx`) and lightweight ONNX segmentation (`sherpa-onnx-pyannote-segmentation-3-0/model.onnx`). No PyTorch, HuggingFace, or biometric embeddings ever leave your machine.

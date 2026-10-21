@@ -458,7 +458,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       'span',
       'font-geist text-[11px] font-medium text-on-surface-variant',
     );
-    audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC (Max 2GB)';
+    audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC, WEBM (Max 2GB)';
     audioCardHeader.append(audioCardTitle, audioFormatsBadge);
 
     const uploadZoneMount = createElement(document, 'div', 'min-w-0');
@@ -625,7 +625,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       groqBtnTitle.className = 'text-xs font-bold text-on-surface flex items-center gap-1.5';
       providerBadge.textContent = 'Soniox Active';
       if (this.visualizerEngine) this.visualizerEngine.textContent = 'Soniox Engine • CAM++ Active';
-      audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC (Max 2GB)';
+      audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC, WEBM (Max 2GB)';
       diarizationHelp.textContent = 'Separate and label speech by distinct speakers using CAM++ offline voice biometric embeddings.';
     });
 
@@ -637,7 +637,7 @@ export class TranscriptionPage implements TranscriptionPageInstance {
       sonioxBtnTitle.className = 'text-xs font-bold text-on-surface flex items-center gap-1.5';
       providerBadge.textContent = 'Groq Whisper Active';
       if (this.visualizerEngine) this.visualizerEngine.textContent = 'Groq Whisper • Sherpa Diarization';
-      audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC (Max 25MB)';
+      audioFormatsBadge.textContent = 'WAV, MP3, M4A, FLAC, WEBM (Max 25MB)';
       diarizationHelp.textContent = 'Offline speaker diarization via Sherpa-ONNX + CAM++ voice biometrics.';
     });
 
